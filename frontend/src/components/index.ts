@@ -13,3 +13,5 @@ export * from "./shared/GameOverModal";
 export * from "./games/tictactoe";
 export * from "./games/battleship";
 export * from "./games/memory";
+export * from "./lobby";
+export * from "./providers/Web3Providers";
