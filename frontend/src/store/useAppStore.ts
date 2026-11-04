@@ -131,8 +131,10 @@ const initialMockMode = saved.isMockMode ?? true;
 const initialMockSubMode: MockSubMode = saved.mockSubMode ?? "bot";
 const initialSoundEnabled = saved.soundEnabled ?? true;
 const initialActiveChainId = saved.activeChainId ?? CHAIN_IDS.SEPOLIA;
-const initialMockPlayerAddress =
-  saved.mockPlayerAddress ?? tabInfo.defaultAddress;
+const isExplicitTab2 = tabInfo.defaultAddress === MOCK_PLAYER_2_ADDRESS;
+const initialMockPlayerAddress = isExplicitTab2
+  ? MOCK_PLAYER_2_ADDRESS
+  : (saved.mockPlayerAddress ?? tabInfo.defaultAddress);
 
 // Sync audio synthesizer state with loaded sound preference
 setAudioSynthEnabled(initialSoundEnabled);

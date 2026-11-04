@@ -255,6 +255,33 @@ export function botFireBattleshipShot(
 const botMemoryCache = new Map<number, number>(); // cardIndex -> symbolId
 
 /**
+ * Records observed card into bot's recall memory with probabilistic retention (~45%).
+ */
+export function recordMemoryCardObservation(
+  cardIndex: number,
+  symbolId: number,
+  forceRemember: boolean = false
+): void {
+  if (forceRemember || Math.random() < 0.45) {
+    botMemoryCache.set(cardIndex, symbolId);
+  }
+}
+
+/**
+ * Resets bot recall memory cache for a fresh match.
+ */
+export function resetBotMemoryCache(): void {
+  botMemoryCache.clear();
+}
+
+/**
+ * Retrieves the bot recall memory cache (for testing/diagnostics).
+ */
+export function getBotMemoryCache(): Map<number, number> {
+  return botMemoryCache;
+}
+
+/**
  * Probabilistic Memory Duel AI (~45% recall memory):
  * - Remembers observed cards with ~45% probability
  * - If a matching pair is known in memory, selects both
@@ -263,19 +290,21 @@ const botMemoryCache = new Map<number, number>(); // cardIndex -> symbolId
 export function botPlayMemoryDuel(
   cards: CardItem[]
 ): { first: number; second: number } {
-  // Update bot memory: cards that are flipped or recently observed
-  cards.forEach((card, idx) => {
-    if (card.isMatched) {
+  // Clean up any cards in bot memory that are already matched
+  for (const [idx] of botMemoryCache) {
+    if (cards[idx]?.isMatched) {
       botMemoryCache.delete(idx);
-    } else if (card.isFlipped) {
-      // 50% probability to remember flipped card
-      if (Math.random() < 0.5 || !botMemoryCache.has(idx)) {
-        botMemoryCache.set(idx, card.symbolId);
-      }
+    }
+  }
+
+  // Also record any currently flipped cards into memory
+  cards.forEach((card, idx) => {
+    if (card.isFlipped && !card.isMatched) {
+      recordMemoryCardObservation(idx, card.symbolId);
     }
   });
 
-  // 1. Look for known pairs in memory
+  // 1. Look for known matching pairs in memory
   const memoryEntries = Array.from(botMemoryCache.entries()).filter(
     ([idx]) => !cards[idx]?.isMatched
   );
@@ -303,7 +332,7 @@ export function botPlayMemoryDuel(
     availableIndices[Math.floor(Math.random() * availableIndices.length)] ?? 0;
   const firstCard = cards[firstIndex];
 
-  // 3. Now check if the symbol of first card is already known in memory
+  // 3. Check if first card's symbol matches another known card in memory
   if (firstCard) {
     botMemoryCache.set(firstIndex, firstCard.symbolId);
 
@@ -444,8 +473,8 @@ export async function triggerBotTurn(
         const target = botFireBattleshipShot(store.defensiveShots);
         // Player's store receives shot
         const result = store.receiveShot(target.x, target.y);
-        // Bot shot revealed on defender
-        store.switchTurn(store.opponentAddress);
+        // Bot shot revealed on defender -> return turn to human player
+        store.switchTurn(store.myAddress);
         // Check if player won or bot won
         if (result === "SUNK" && store.mySunkShips.length === 5) {
           // Game ends
@@ -576,7 +605,7 @@ function attachBroadcastChannelListener(channel: BroadcastChannel): void {
 export function handleIncomingP2PMessage(
   message: P2PMessage<Record<string, unknown>>
 ): void {
-  const { type, payload, sender } = message;
+  const { type, payload } = message;
 
   switch (type) {
     // ------------------------------------------------------------------------
@@ -671,10 +700,11 @@ export function handleIncomingP2PMessage(
         y,
         result: shotResult,
         sunkShipId: hitRecord?.sunkShipId ?? hitShip.hitShipId,
-        defender: btlStore.currentTurn,
+        defender: btlStore.myAddress,
       });
 
-      btlStore.switchTurn(sender);
+      // Defender's turn to fire next
+      btlStore.switchTurn(btlStore.myAddress);
       break;
     }
 
@@ -688,7 +718,8 @@ export function handleIncomingP2PMessage(
       };
       const btlStore = useBattleshipStore.getState();
       btlStore.revealShotResult(x, y, result, sunkShipId);
-      btlStore.switchTurn(sender);
+      // Attacker has fired and received result, now it is opponent's (defender's) turn to fire
+      btlStore.switchTurn(btlStore.opponentAddress);
       break;
     }
 

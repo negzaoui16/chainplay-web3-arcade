@@ -49,6 +49,7 @@ export interface BattleshipState {
   phase: BattleshipUIPhase;
 
   // Fleet placement state
+  myAddress: string;
   myShips: ShipPlacement[];
   myFlatBoard: number[];
   mySalt: `0x${string}` | null;
@@ -119,6 +120,7 @@ export const useBattleshipStore = create<BattleshipState>()((set, get) => ({
   gameId: null,
   phase: "PLACEMENT",
 
+  myAddress: "",
   myShips: initialSetup.ships,
   myFlatBoard: initialSetup.flatBoard,
   mySalt: null,
@@ -144,6 +146,7 @@ export const useBattleshipStore = create<BattleshipState>()((set, get) => ({
     set({
       gameId,
       phase: "PLACEMENT",
+      myAddress: playerAddress.toLowerCase(),
       myShips: setup.ships,
       myFlatBoard: setup.flatBoard,
       mySalt: null,
@@ -293,6 +296,13 @@ export const useBattleshipStore = create<BattleshipState>()((set, get) => ({
 
   receiveShot: (x: number, y: number): ShotResult => {
     const state = get();
+
+    // Guard against duplicate shots on the same coordinate
+    const existing = state.defensiveShots.find((s) => s.x === x && s.y === y);
+    if (existing) {
+      return existing.result;
+    }
+
     const shotOutcome = checkShotResult(state.myShips, x, y);
 
     let result: ShotResult = "MISS";
@@ -428,6 +438,7 @@ export const useBattleshipStore = create<BattleshipState>()((set, get) => ({
     set({
       gameId: null,
       phase: "PLACEMENT",
+      myAddress: "",
       myShips: setup.ships,
       myFlatBoard: setup.flatBoard,
       mySalt: null,

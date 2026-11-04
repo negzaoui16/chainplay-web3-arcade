@@ -23,6 +23,9 @@ import {
   botSetupBattleship,
   botFireBattleshipShot,
   botPlayMemoryDuel,
+  recordMemoryCardObservation,
+  resetBotMemoryCache,
+  getBotMemoryCache,
   handleIncomingP2PMessage,
   type P2PMessage,
 } from "../mockChainEngine";
@@ -183,6 +186,21 @@ async function runMockEngineTests(): Promise<void> {
     "Winning line must be [0, 1, 2]"
   );
 
+  // Test Turn Timeout Claim (Must enforce 60s rule)
+  ttt.initGame("ttt_test_timeout", MOCK_PLAYER_1_ADDRESS, MOCK_PLAYER_2_ADDRESS);
+  // Now it's P1 turn. P2 tries to claim before 60s: must fail!
+  const prematureClaim = ttt.claimTimeoutWin(MOCK_PLAYER_2_ADDRESS);
+  assert(prematureClaim === false, "Premature timeout claim before 60s must fail");
+
+  // Advance lastMoveTimestamp beyond 60s
+  useTicTacToeStore.setState({ lastMoveTimestamp: Date.now() - 65000 });
+  const validClaim = ttt.claimTimeoutWin(MOCK_PLAYER_2_ADDRESS);
+  assert(validClaim === true, "Valid timeout claim after 60s elapsed must succeed");
+  assert(
+    useTicTacToeStore.getState().winner?.toLowerCase() === MOCK_PLAYER_2_ADDRESS.toLowerCase(),
+    "Claimant must be awarded win upon timeout"
+  );
+
   console.log("  ✓ Tic-Tac-Toe win calculation and Bot blocking/winning AI verified");
   suitesPassed++;
 
@@ -193,6 +211,10 @@ async function runMockEngineTests(): Promise<void> {
   const btl = useBattleshipStore.getState();
   btl.initGame("btl_test_1", MOCK_PLAYER_1_ADDRESS, MOCK_BOT_ADDRESS);
 
+  assert(
+    useBattleshipStore.getState().myAddress.toLowerCase() === MOCK_PLAYER_1_ADDRESS.toLowerCase(),
+    "myAddress must be initialized to Player 1 address"
+  );
   assert(btl.myShips.length === 5, "Must initialize with 5 ships");
   assert(btl.phase === "PLACEMENT", "Must start in PLACEMENT phase");
 
@@ -235,14 +257,24 @@ async function runMockEngineTests(): Promise<void> {
     `Target shot (${targetShot.x}, ${targetShot.y}) must be orthogonal neighbor of (4, 4)`
   );
 
-  // Receiving Shot & Sinking Ship
+  // Receiving Shot & Duplicate Shot Guard
   const ships = useBattleshipStore.getState().myShips;
   const firstShip = ships[0];
   if (!firstShip) {
     throw new Error("First ship must exist");
   }
-  const outcome = btl.receiveShot(firstShip.startX, firstShip.startY);
-  assert(outcome === "HIT" || outcome === "SUNK", "Shot on ship cell must result in HIT or SUNK");
+  const outcome1 = btl.receiveShot(firstShip.startX, firstShip.startY);
+  assert(outcome1 === "HIT" || outcome1 === "SUNK", "Shot on ship cell must result in HIT or SUNK");
+
+  const hitsAfterFirstShot = useBattleshipStore.getState().myShips[0]?.hits ?? 0;
+  // Fire again at the EXACT same coordinate: duplicate guard must trigger!
+  const outcome2 = btl.receiveShot(firstShip.startX, firstShip.startY);
+  assert(outcome2 === outcome1, "Duplicate shot must return identical cached result");
+  const hitsAfterDuplicateShot = useBattleshipStore.getState().myShips[0]?.hits ?? 0;
+  assert(
+    hitsAfterDuplicateShot === hitsAfterFirstShot,
+    "Duplicate shot must NOT double-increment ship hits"
+  );
 
   // Verify integrity
   const verified = btl.verifyFinalBoard(botFleet.flatBoard, botFleet.salt);
@@ -289,9 +321,44 @@ async function runMockEngineTests(): Promise<void> {
     "Same player must keep turn on match"
   );
 
-  // Bot AI selection
-  const botMove = botPlayMemoryDuel(useMemoryStore.getState().cards);
-  assert(botMove.first !== botMove.second, "Bot must select two distinct card indices");
+  // Bot AI selection & Memory Recall Cache verification
+  resetBotMemoryCache();
+  assert(getBotMemoryCache().size === 0, "Bot memory cache must be empty after reset");
+
+  // Find two remaining unmatched cards with identical symbol
+  const remainingUnmatched = useMemoryStore.getState().cards.filter((c) => !c.isMatched);
+  const symMap = new Map<number, number[]>();
+  for (const c of remainingUnmatched) {
+    const list = symMap.get(c.symbolId) ?? [];
+    list.push(c.id);
+    symMap.set(c.symbolId, list);
+  }
+
+  let pairIdx1 = -1;
+  let pairIdx2 = -1;
+  let pairSym = -1;
+  for (const [sym, indices] of symMap) {
+    if (indices.length >= 2 && indices[0] !== undefined && indices[1] !== undefined) {
+      pairIdx1 = indices[0];
+      pairIdx2 = indices[1];
+      pairSym = sym;
+      break;
+    }
+  }
+
+  assert(pairIdx1 !== -1 && pairIdx2 !== -1, "Must find unmatched pair in deck");
+
+  // Force record this known pair into bot recall memory
+  recordMemoryCardObservation(pairIdx1, pairSym, true);
+  recordMemoryCardObservation(pairIdx2, pairSym, true);
+  assert(getBotMemoryCache().size === 2, "Bot memory cache must contain 2 recorded cards");
+
+  // Bot must immediately pair known cards from its memory cache
+  const botKnownPairMove = botPlayMemoryDuel(useMemoryStore.getState().cards);
+  const isPairMatch =
+    (botKnownPairMove.first === pairIdx1 && botKnownPairMove.second === pairIdx2) ||
+    (botKnownPairMove.first === pairIdx2 && botKnownPairMove.second === pairIdx1);
+  assert(isPairMatch, "Bot must prioritize and pair known matching cards from recall memory");
 
   console.log("  ✓ Memory Duel matching, multipliers, and bot recall AI verified");
   suitesPassed++;
@@ -348,6 +415,47 @@ async function runMockEngineTests(): Promise<void> {
   assert(
     useBattleshipStore.getState().opponentBoardHash === sampleCommitHash,
     "P2P BATTLESHIP_COMMIT must record opponent board hash"
+  );
+
+  // Dispatch mock P2P Battleship Shot message (incoming shot from Player 2)
+  const mockShotMessage: P2PMessage<Record<string, unknown>> = {
+    type: "BATTLESHIP_SHOT",
+    sender: MOCK_PLAYER_2_ADDRESS,
+    tabSessionId: "remote_tab_session",
+    timestamp: Date.now(),
+    payload: {
+      x: 0,
+      y: 0,
+      attacker: MOCK_PLAYER_2_ADDRESS,
+    },
+  };
+
+  handleIncomingP2PMessage(mockShotMessage);
+  // After defender tab receives shot, turn switches to myAddress (defender's turn to fire next)
+  assert(
+    useBattleshipStore.getState().currentTurn.toLowerCase() === MOCK_PLAYER_1_ADDRESS.toLowerCase(),
+    "P2P BATTLESHIP_SHOT must switch turn to defender (myAddress) to fire next"
+  );
+
+  // Dispatch mock P2P Battleship Reveal message (response to my shot)
+  const mockRevealMessage: P2PMessage<Record<string, unknown>> = {
+    type: "BATTLESHIP_REVEAL",
+    sender: MOCK_PLAYER_2_ADDRESS,
+    tabSessionId: "remote_tab_session",
+    timestamp: Date.now(),
+    payload: {
+      x: 1,
+      y: 1,
+      result: "MISS",
+      defender: MOCK_PLAYER_2_ADDRESS,
+    },
+  };
+
+  handleIncomingP2PMessage(mockRevealMessage);
+  // After attacker receives reveal, turn switches to opponentAddress (defender's turn to fire)
+  assert(
+    useBattleshipStore.getState().currentTurn.toLowerCase() === MOCK_PLAYER_2_ADDRESS.toLowerCase(),
+    "P2P BATTLESHIP_REVEAL must switch turn to opponent (opponentAddress)"
   );
 
   console.log("  ✓ Cross-Tab P2P message handler updates stores across tabs");

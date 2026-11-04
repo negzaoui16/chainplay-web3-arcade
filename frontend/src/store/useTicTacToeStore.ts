@@ -16,6 +16,7 @@ import {
   XO_CELL_EMPTY,
   XO_CELL_X,
 } from "../types/tictactoe.types";
+import { TURN_TIMEOUT_SECONDS } from "../config/constants";
 import { playTileClick, playVictory } from "../lib/utils/soundEffects";
 
 export const WINNING_COMBINATIONS: readonly XOWinningLine[] = [
@@ -230,6 +231,12 @@ export const useTicTacToeStore = create<TicTacToeState>()((set, get) => ({
 
     // Must be opponent's turn that timed out
     if (state.currentTurn.toLowerCase() === normClaimant) {
+      return false;
+    }
+
+    // Must have exceeded the turn timeout duration (e.g. 60 seconds)
+    const timeoutMs = TURN_TIMEOUT_SECONDS * 1000;
+    if (Date.now() - state.lastMoveTimestamp < timeoutMs) {
       return false;
     }
 

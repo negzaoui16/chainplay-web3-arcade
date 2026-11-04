@@ -14,6 +14,10 @@ import { create } from "zustand";
 import type { CardItem, TurnPhase } from "../types/memory.types";
 import { MEMORY_CARDS } from "../config/constants";
 import { playCardFlip, playMatchChime, playVictory } from "../lib/utils/soundEffects";
+import {
+  recordMemoryCardObservation,
+  resetBotMemoryCache,
+} from "../lib/mock/mockChainEngine";
 
 export interface MemoryState {
   gameId: string | null;
@@ -111,6 +115,8 @@ export const useMemoryStore = create<MemoryState>()((set, get) => ({
       mismatchTimerId = null;
     }
 
+    resetBotMemoryCache();
+
     const normP1 = p1.toLowerCase();
     const normP2 = p2.toLowerCase();
     const deck = customCards ?? generateMemoryDeck();
@@ -159,6 +165,9 @@ export const useMemoryStore = create<MemoryState>()((set, get) => ({
 
     const targetCard = cards[index];
     if (!targetCard || targetCard.isMatched || targetCard.isFlipped) return false;
+
+    // Record observed card into bot recall memory
+    recordMemoryCardObservation(index, targetCard.symbolId);
 
     // STEP 1: First card selection
     if (turnPhase === "SELECT_FIRST") {
@@ -301,6 +310,8 @@ export const useMemoryStore = create<MemoryState>()((set, get) => ({
       clearTimeout(mismatchTimerId);
       mismatchTimerId = null;
     }
+
+    resetBotMemoryCache();
 
     set({
       gameId: null,
