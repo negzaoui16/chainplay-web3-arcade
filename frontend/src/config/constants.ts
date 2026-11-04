@@ -31,10 +31,7 @@ export const FLEET_LIST: readonly ShipDefinition[] = [
   FLEET_CONFIG.DESTROYER,
 ] as const;
 
-export const TOTAL_SHIP_CELLS: number = FLEET_LIST.reduce(
-  (acc, ship) => acc + ship.size,
-  0
-); // Exactly 17 cells (5+4+3+3+2)
+export const TOTAL_SHIP_CELLS = 17 as const; // Exactly 17 cells (5+4+3+3+2)
 
 // ==========================================
 // Grid Dimensions
