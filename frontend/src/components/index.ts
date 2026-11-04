@@ -11,3 +11,4 @@ export * from "./shared/PlayerHud";
 export * from "./shared/TransactionToast";
 export * from "./shared/GameOverModal";
 export * from "./games/tictactoe";
+export * from "./games/battleship";
