@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import React from "react";
 import "./globals.css";
+import "@rainbow-me/rainbowkit/styles.css";
 import { Web3Providers } from "@/components/providers/Web3Providers";
 import { Navbar } from "@/components/layout/Navbar";
 import { NetworkBanner } from "@/components/layout/NetworkBanner";

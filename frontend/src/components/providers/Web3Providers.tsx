@@ -16,7 +16,6 @@ import { WagmiProvider, type State } from "wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RainbowKitProvider, darkTheme } from "@rainbow-me/rainbowkit";
 import { wagmiConfig } from "@/config/wagmi";
-import "@rainbow-me/rainbowkit/styles.css";
 
 export interface Web3ProvidersProps {
   readonly children: React.ReactNode;
