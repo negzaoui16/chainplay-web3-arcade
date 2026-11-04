@@ -444,7 +444,7 @@ export async function triggerBotTurn(
         const botSymbol: 1 | 2 =
           store.player1?.toLowerCase() === MOCK_BOT_ADDRESS.toLowerCase() ? 1 : 2;
         const chosenCell = botPlayTicTacToe(store.board, botSymbol);
-        store.playMoveOptimistic(chosenCell, MOCK_BOT_ADDRESS);
+        store.confirmMove(chosenCell, botSymbol, MOCK_BOT_ADDRESS);
       }
       break;
     }

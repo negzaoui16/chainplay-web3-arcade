@@ -177,6 +177,9 @@ export function useTicTacToeContract(boundGameId?: string): UseTicTacToeContract
           const symbol: 1 | 2 =
             store.player1?.toLowerCase() === activePlayer.toLowerCase() ? 1 : 2;
 
+          // Solidify move and reset optimisticPendingIndex to null
+          store.confirmMove(cellIndex, symbol, activePlayer);
+
           if (mockSubMode === "p2p") {
             broadcastP2PMessage("XO_MOVE", {
               cellIndex,
@@ -196,19 +199,38 @@ export function useTicTacToeContract(boundGameId?: string): UseTicTacToeContract
           throw new Error("TicTacToe contract address is not configured for this chain.");
         }
 
-        const numericId = BigInt(gameId);
-        const hash = await writeContractAsync({
-          address: tttAddress,
-          abi: TicTacToeABI,
-          functionName: "makeMove",
-          args: [numericId, cellIndex],
-        });
+        const store = useTicTacToeStore.getState();
+        const activePlayer = getActiveAddress();
+        const symbol: 1 | 2 =
+          store.player1?.toLowerCase() === activePlayer.toLowerCase() ? 1 : 2;
 
-        if (publicClient) {
-          await publicClient.waitForTransactionReceipt({ hash });
+        // Optimistic preview while transaction is pending on-chain
+        const played = store.playMoveOptimistic(cellIndex, activePlayer);
+        if (!played) {
+          return { success: false };
         }
 
-        return { success: true, txHash: hash };
+        try {
+          const numericId = BigInt(gameId);
+          const hash = await writeContractAsync({
+            address: tttAddress,
+            abi: TicTacToeABI,
+            functionName: "makeMove",
+            args: [numericId, cellIndex],
+          });
+
+          if (publicClient) {
+            await publicClient.waitForTransactionReceipt({ hash });
+          }
+
+          // Solidify move on receipt confirmation
+          store.confirmMove(cellIndex, symbol, activePlayer);
+
+          return { success: true, txHash: hash };
+        } catch (txErr) {
+          store.rollbackMove(cellIndex);
+          throw txErr;
+        }
       } catch (err) {
         const caughtError =
           err instanceof Error ? err : new Error(String(err));

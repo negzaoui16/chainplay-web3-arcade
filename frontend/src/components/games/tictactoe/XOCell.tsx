@@ -18,7 +18,6 @@ import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2 } from "lucide-react";
 import { type CellValue, XO_CELL_EMPTY, XO_CELL_X, XO_CELL_O } from "@/types/tictactoe.types";
-import { soundEffects } from "@/lib/utils/soundEffects";
 
 export interface XOCellProps {
   /**
@@ -177,7 +176,6 @@ export function XOCell({
 
   const handleClick = (): void => {
     if (!canClick) return;
-    soundEffects.playTileClick();
     onClick(index);
   };
 

@@ -225,6 +225,77 @@ export function runTicTacToeVerification(): {
   }
   checks.push("60s Timeout Forfeit Claim successfully awarded to claimant");
 
+  // 9. Full Multi-Turn Game Loop Simulation (Human vs Bot)
+  // Verifies that optimisticPendingIndex is null after every turn and the board never deadlocks
+  useTicTacToeStore.getState().initGame("sim_full_match", p1, p2);
+  let turnsCount = 0;
+  const maxTurns = 9;
+
+  while (
+    useTicTacToeStore.getState().winner === null &&
+    !useTicTacToeStore.getState().isDraw &&
+    turnsCount < maxTurns
+  ) {
+    const currentState = useTicTacToeStore.getState();
+    const isHumanTurn =
+      currentState.currentTurn.toLowerCase() === p1.toLowerCase();
+
+    if (isHumanTurn) {
+      // Pick first available empty cell
+      const openCell = currentState.board.findIndex((c) => c === XO_CELL_EMPTY);
+      if (openCell === -1) break;
+
+      // Human plays optimistic move
+      const played = currentState.playMoveOptimistic(openCell, p1);
+      if (!played) {
+        throw new Error(`Human move failed unexpectedly on cell ${openCell}`);
+      }
+
+      // Verify pending index was set during optimistic phase
+      if (useTicTacToeStore.getState().optimisticPendingIndex !== openCell) {
+        throw new Error(`Expected optimisticPendingIndex to be ${openCell}`);
+      }
+
+      // Simulate move confirmation (as handled in makeMove)
+      useTicTacToeStore.getState().confirmMove(openCell, 1, p1);
+
+      // Verify pending index is cleared immediately
+      if (useTicTacToeStore.getState().optimisticPendingIndex !== null) {
+        throw new Error(
+          `optimisticPendingIndex was not cleared after Human turn on cell ${openCell}`
+        );
+      }
+    } else {
+      // Bot plays using minimax / tactical blocker
+      const botChosen = botPlayTicTacToe(currentState.board, 2);
+
+      // Bot directly confirms move (as now implemented in triggerBotTurn)
+      useTicTacToeStore.getState().confirmMove(botChosen, 2, p2);
+
+      // Verify pending index is null immediately so board is not locked for human
+      if (useTicTacToeStore.getState().optimisticPendingIndex !== null) {
+        throw new Error(
+          `optimisticPendingIndex was not null after Bot turn on cell ${botChosen}`
+        );
+      }
+    }
+
+    turnsCount++;
+  }
+
+  const finalSimState = useTicTacToeStore.getState();
+  if (finalSimState.winner === null && !finalSimState.isDraw) {
+    throw new Error("Simulated match did not resolve to win or draw");
+  }
+  if (finalSimState.optimisticPendingIndex !== null) {
+    throw new Error("Final match state left optimisticPendingIndex non-null");
+  }
+  checks.push(
+    `Full Human vs Bot multi-turn match resolved cleanly in ${turnsCount} turns (${
+      finalSimState.winner ? `Winner: ${finalSimState.winner === p1.toLowerCase() ? "Human" : "Bot"}` : "Draw"
+    }) with zero optimistic deadlocks`
+  );
+
   // Reset store
   useTicTacToeStore.getState().reset();
 
