@@ -181,7 +181,13 @@ async function runVerificationSuite(): Promise<void> {
     "Claimant must be winner"
   );
 
-  console.log("  ✓ useTicTacToeContract moves and timeout win verified");
+  // Test getBoard
+  const boardData = await tttContract.getBoard(tttGameId);
+  assert(boardData !== null, "getBoard must return valid board state");
+  assert(boardData?.board.length === 9, "Board must contain 9 cells");
+  assert(boardData?.winner?.toLowerCase() === MOCK_PLAYER_1_ADDRESS.toLowerCase(), "Board data winner must match");
+
+  console.log("  ✓ useTicTacToeContract moves, timeout win, and getBoard verified");
   suitesPassed++;
 
   // -------------------------------------------------------------------------
@@ -216,6 +222,8 @@ async function runVerificationSuite(): Promise<void> {
   // Claim timeout win
   const btlClaimRes = await btlContract.claimTimeoutWin(btlGameId);
   assert(btlClaimRes.success === true, "claimTimeoutWin must succeed");
+  assert(useBattleshipStore.getState().phase === "FINISHED", "Phase must transition to FINISHED on timeout claim");
+  assert(useBattleshipStore.getState().winner !== null, "Battleship winner must be set on timeout claim");
 
   console.log("  ✓ useBattleshipContract commit, firing, and verification verified");
   suitesPassed++;
@@ -239,8 +247,16 @@ async function runVerificationSuite(): Promise<void> {
   // Claim timeout win
   const memClaimRes = await memContract.claimTimeoutWin(memGameId);
   assert(memClaimRes.success === true, "claimTimeoutWin must succeed");
+  assert(useMemoryStore.getState().turnPhase === "TURN_LOCKED", "turnPhase must be TURN_LOCKED on timeout claim");
+  assert(useMemoryStore.getState().winner !== null, "Memory Duel winner must be set on timeout claim");
 
-  console.log("  ✓ useMemoryDuelContract deck initialization and card flips verified");
+  // Test getGameState
+  const memState = await memContract.getGameState(memGameId);
+  assert(memState !== null, "getGameState must return memory state");
+  assert(typeof memState?.p1Score === "number", "p1Score must be a number");
+  assert(typeof memState?.matchedPairs === "number", "matchedPairs must be a number");
+
+  console.log("  ✓ useMemoryDuelContract deck initialization, card flips, and getGameState verified");
   suitesPassed++;
 
   // -------------------------------------------------------------------------

@@ -30,10 +30,21 @@ import {
   resetBotMemoryCache,
 } from "@/lib/mock/mockChainEngine";
 import { GameType } from "@/types/lobby.types";
+import { ZERO_ADDRESS } from "@/config/constants";
+import { playVictory } from "@/lib/utils/soundEffects";
 
 export interface MemoryDuelContractResult {
   success: boolean;
   txHash?: `0x${string}`;
+}
+
+export interface MemoryGameStateData {
+  currentTurn: string;
+  p1Score: number;
+  p2Score: number;
+  matchedPairs: number;
+  status: number;
+  winner: string | null;
 }
 
 export interface UseMemoryDuelContractReturn {
@@ -47,6 +58,7 @@ export interface UseMemoryDuelContractReturn {
     cardIndex2: number
   ) => Promise<MemoryDuelContractResult>;
   claimTimeoutWin: (gameId: string) => Promise<MemoryDuelContractResult>;
+  getGameState: (gameId: string) => Promise<MemoryGameStateData | null>;
   isPending: boolean;
   error: Error | null;
 }
@@ -119,7 +131,15 @@ export function useMemoryDuelContract(boundGameId?: string): UseMemoryDuelContra
         if (gameId !== undefined && winner) {
           const targetId = boundGameId || useMemoryStore.getState().gameId;
           if (targetId === gameId.toString()) {
-            // Update store winner if not already set
+            const resolvedWinner =
+              winner.toLowerCase() === ZERO_ADDRESS.toLowerCase()
+                ? null
+                : winner;
+            useMemoryStore.setState({
+              winner: resolvedWinner,
+              turnPhase: "TURN_LOCKED",
+            });
+            playVictory();
           }
         }
       }
@@ -293,6 +313,11 @@ export function useMemoryDuelContract(boundGameId?: string): UseMemoryDuelContra
       try {
         if (isMock) {
           await simulateTxDelay(300, 600);
+          const activeAddress = getActiveAddress();
+          useMemoryStore.setState({
+            winner: activeAddress,
+            turnPhase: "TURN_LOCKED",
+          });
           return { success: true };
         }
 
@@ -325,6 +350,7 @@ export function useMemoryDuelContract(boundGameId?: string): UseMemoryDuelContra
     },
     [
       isMock,
+      getActiveAddress,
       isMemoryConfigured,
       writeContractAsync,
       memoryAddress,
@@ -332,10 +358,58 @@ export function useMemoryDuelContract(boundGameId?: string): UseMemoryDuelContra
     ]
   );
 
+  const getGameState = useCallback(
+    async (gameId: string): Promise<MemoryGameStateData | null> => {
+      if (isMock) {
+        const store = useMemoryStore.getState();
+        const status = store.winner ? 2 : store.isDraw ? 3 : 1;
+        return {
+          currentTurn: store.currentTurn,
+          p1Score: store.p1Score,
+          p2Score: store.p2Score,
+          matchedPairs: store.matchedPairsCount,
+          status,
+          winner: store.winner,
+        };
+      }
+
+      if (!isMemoryConfigured || !publicClient) {
+        return null;
+      }
+
+      try {
+        const numericId = BigInt(gameId);
+        const [currentTurn, p1Score, p2Score, matchedPairs, status, winner] =
+          await publicClient.readContract({
+            address: memoryAddress,
+            abi: MemoryDuelABI,
+            functionName: "getGameState",
+            args: [numericId],
+          });
+
+        return {
+          currentTurn,
+          p1Score,
+          p2Score,
+          matchedPairs,
+          status,
+          winner:
+            winner.toLowerCase() === ZERO_ADDRESS.toLowerCase()
+              ? null
+              : winner,
+        };
+      } catch {
+        return null;
+      }
+    },
+    [isMock, isMemoryConfigured, publicClient, memoryAddress]
+  );
+
   return {
     initializeDeck,
     flipPair,
     claimTimeoutWin,
+    getGameState,
     isPending,
     error,
   };

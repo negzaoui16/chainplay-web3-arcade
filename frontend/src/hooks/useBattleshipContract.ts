@@ -31,6 +31,8 @@ import {
   botReceiveShot,
 } from "@/lib/mock/mockChainEngine";
 import { GameType } from "@/types/lobby.types";
+import { ZERO_ADDRESS } from "@/config/constants";
+import { playVictory } from "@/lib/utils/soundEffects";
 import type { ShipId } from "@/types/battleship.types";
 
 export interface BattleshipContractResult {
@@ -176,7 +178,15 @@ export function useBattleshipContract(boundGameId?: string): UseBattleshipContra
         if (gameId !== undefined && winner) {
           const targetGameId = boundGameId || useBattleshipStore.getState().gameId;
           if (targetGameId === gameId.toString()) {
-            // Update store winner
+            const resolvedWinner =
+              winner.toLowerCase() === ZERO_ADDRESS.toLowerCase()
+                ? null
+                : winner;
+            useBattleshipStore.setState({
+              winner: resolvedWinner,
+              phase: "FINISHED",
+            });
+            playVictory();
           }
         }
       }
@@ -245,6 +255,7 @@ export function useBattleshipContract(boundGameId?: string): UseBattleshipContra
     },
     [
       isMock,
+      getActiveAddress,
       isBattleshipConfigured,
       writeContractAsync,
       battleshipAddress,
@@ -469,6 +480,7 @@ export function useBattleshipContract(boundGameId?: string): UseBattleshipContra
     },
     [
       isMock,
+      getActiveAddress,
       isBattleshipConfigured,
       writeContractAsync,
       battleshipAddress,
@@ -484,7 +496,11 @@ export function useBattleshipContract(boundGameId?: string): UseBattleshipContra
       try {
         if (isMock) {
           await simulateTxDelay(300, 600);
-          // Mark winner in local store
+          const activeAddress = getActiveAddress();
+          useBattleshipStore.setState({
+            winner: activeAddress,
+            phase: "FINISHED",
+          });
           return { success: true };
         }
 
@@ -517,6 +533,7 @@ export function useBattleshipContract(boundGameId?: string): UseBattleshipContra
     },
     [
       isMock,
+      getActiveAddress,
       isBattleshipConfigured,
       writeContractAsync,
       battleshipAddress,

@@ -27,15 +27,26 @@ import {
   triggerBotTurn,
 } from "@/lib/mock/mockChainEngine";
 import { GameType } from "@/types/lobby.types";
+import { ZERO_ADDRESS } from "@/config/constants";
+import { playVictory } from "@/lib/utils/soundEffects";
+import type { CellValue, XOWinningLine } from "@/types/tictactoe.types";
 
 export interface TicTacToeMoveResult {
   success: boolean;
   txHash?: `0x${string}`;
 }
 
+export interface TicTacToeBoardData {
+  board: CellValue[];
+  currentTurn: string;
+  status: number;
+  winner: string | null;
+}
+
 export interface UseTicTacToeContractReturn {
   makeMove: (gameId: string, cellIndex: number) => Promise<TicTacToeMoveResult>;
   claimTimeoutWin: (gameId: string) => Promise<TicTacToeMoveResult>;
+  getBoard: (gameId: string) => Promise<TicTacToeBoardData | null>;
   isPending: boolean;
   error: Error | null;
 }
@@ -100,17 +111,23 @@ export function useTicTacToeContract(boundGameId?: string): UseTicTacToeContract
     enabled: isLiveOnChain && isTttConfigured,
     onLogs(logs) {
       for (const log of logs) {
-        const { gameId, winner } = log.args;
+        const { gameId, winner, winningLine } = log.args;
         if (gameId !== undefined && winner !== undefined) {
           const gameIdStr = gameId.toString();
           const store = useTicTacToeStore.getState();
           if (store.gameId === gameIdStr) {
-            // Confirm final state if not already set
-            if (!store.winner) {
-              const p1 = store.player1 ?? "";
-              const p2 = store.player2 ?? "";
-              store.initGame(gameIdStr, p1, p2);
-            }
+            const line =
+              winningLine && winningLine.length === 3
+                ? ([winningLine[0], winningLine[1], winningLine[2]] as XOWinningLine)
+                : null;
+            const resolvedWinner =
+              winner.toLowerCase() === ZERO_ADDRESS.toLowerCase() ? null : winner;
+            useTicTacToeStore.setState({
+              winner: resolvedWinner,
+              winningLine: line,
+              isDraw: false,
+            });
+            playVictory();
           }
         }
       }
@@ -128,7 +145,7 @@ export function useTicTacToeContract(boundGameId?: string): UseTicTacToeContract
         if (gameId !== undefined) {
           const store = useTicTacToeStore.getState();
           if (store.gameId === gameId.toString()) {
-            // Board reflects draw
+            useTicTacToeStore.setState({ isDraw: true, winner: null });
           }
         }
       }
@@ -269,9 +286,53 @@ export function useTicTacToeContract(boundGameId?: string): UseTicTacToeContract
     ]
   );
 
+  const getBoard = useCallback(
+    async (gameId: string): Promise<TicTacToeBoardData | null> => {
+      if (isMock) {
+        const store = useTicTacToeStore.getState();
+        const status = store.winner ? 2 : store.isDraw ? 3 : 1;
+        return {
+          board: [...store.board],
+          currentTurn: store.currentTurn,
+          status,
+          winner: store.winner,
+        };
+      }
+
+      if (!isTttConfigured || !publicClient) {
+        return null;
+      }
+
+      try {
+        const numericId = BigInt(gameId);
+        const [board, currentTurn, status, winner] =
+          await publicClient.readContract({
+            address: tttAddress,
+            abi: TicTacToeABI,
+            functionName: "getBoard",
+            args: [numericId],
+          });
+
+        return {
+          board: Array.from(board) as CellValue[],
+          currentTurn,
+          status,
+          winner:
+            winner.toLowerCase() === ZERO_ADDRESS.toLowerCase()
+              ? null
+              : winner,
+        };
+      } catch {
+        return null;
+      }
+    },
+    [isMock, isTttConfigured, publicClient, tttAddress]
+  );
+
   return {
     makeMove,
     claimTimeoutWin,
+    getBoard,
     isPending,
     error,
   };
