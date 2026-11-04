@@ -1,8 +1,9 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const emptyShim = path.resolve(__dirname, "src/lib/empty-shim.js");
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const emptyModule = path.resolve(__dirname, "src/lib/empty-module.js");
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -17,16 +18,15 @@ const nextConfig = {
 
     config.resolve.alias = {
       ...config.resolve.alias,
-      "@base-org/account": emptyShim,
-      "@coinbase/cdp-sdk": emptyShim,
-      "@x402/evm/upto/client": emptyShim,
-      "@x402/evm/exact/client": emptyShim,
-      "@x402/core/client": emptyShim,
-      "@x402/svm/exact/client": emptyShim,
-      "@x402/evm": emptyShim,
-      "@x402/core": emptyShim,
-      "@x402/svm": emptyShim,
-      "@react-native-async-storage/async-storage": emptyShim,
+      "@base-org/account": emptyModule,
+      "@coinbase/cdp-sdk": emptyModule,
+      "@x402/evm/upto/client": emptyModule,
+      "@x402/evm/exact/client": emptyModule,
+      "@x402/core/client": emptyModule,
+      "@x402/svm/exact/client": emptyModule,
+      "@x402/evm": emptyModule,
+      "@x402/core": emptyModule,
+      "@react-native-async-storage/async-storage": emptyModule,
     };
 
     config.externals.push("pino-pretty", "lokijs", "encoding");
