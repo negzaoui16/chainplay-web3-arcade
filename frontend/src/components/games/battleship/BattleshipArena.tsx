@@ -359,6 +359,7 @@ export function BattleshipArena({
         );
 
         if (result.valid || result.success) {
+          useBattleshipStore.setState({ isVerified: true });
           setToast({
             status: "confirmed",
             title: "Board Integrity Verified 100%",
