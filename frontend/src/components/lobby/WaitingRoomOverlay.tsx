@@ -68,7 +68,7 @@ export function WaitingRoomOverlay({
   onCancelled,
 }: WaitingRoomOverlayProps): JSX.Element {
   const router = useRouter();
-  const { cancelWaitingGame, isPending } = useGameManager();
+  const { cancelWaitingGame, joinGame, isPending } = useGameManager();
   const { isMock, effectiveAddress } = useChainPlayMode();
 
   const rooms = useLobbyStore((s) => s.rooms);
@@ -77,9 +77,28 @@ export function WaitingRoomOverlay({
   const [copiedLink, setCopiedLink] = useState<boolean>(false);
   const [copiedCode, setCopiedCode] = useState<boolean>(false);
   const [isCancelling, setIsCancelling] = useState<boolean>(false);
+  const [isJoining, setIsJoining] = useState<boolean>(false);
 
   const slug = GAME_TYPE_SLUGS[gameType];
   const isHost = player1.toLowerCase() === effectiveAddress.toLowerCase();
+
+  const handleJoinMatch = async (): Promise<void> => {
+    soundEffects.playTileClick();
+    setIsJoining(true);
+    try {
+      const res = await joinGame(roomId, formatEther(wager));
+      if (res.success) {
+        soundEffects.playMatchChime();
+        if (onOpponentJoined) {
+          onOpponentJoined();
+        }
+      }
+    } catch {
+      soundEffects.playError();
+    } finally {
+      setIsJoining(false);
+    }
+  };
 
   // Watch for active room status transition
   useEffect(() => {
@@ -351,7 +370,34 @@ export function WaitingRoomOverlay({
           </div>
         )}
 
-        {/* Cancel Room CTA */}
+        {/* Join Room CTA for Visiting Challengers */}
+        {!isHost && (
+          <div className="mt-6 pt-6 border-t border-slate-800/80 w-full flex flex-col items-center gap-3 relative z-10">
+            <button
+              type="button"
+              disabled={isJoining || isPending}
+              onClick={() => void handleJoinMatch()}
+              className="w-full sm:w-auto px-8 py-3.5 rounded-xl font-mono text-sm font-bold uppercase tracking-wider bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-400 hover:to-rose-500 text-white shadow-magenta-glow transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {isJoining || isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Staking Wager & Entering Match...</span>
+                </>
+              ) : (
+                <>
+                  <Swords className="w-4 h-4" />
+                  <span>Join Arena & Stake {formatWager(wager)}</span>
+                </>
+              )}
+            </button>
+            <p className="text-[11px] text-slate-500 font-mono">
+              Your wager will be securely locked in smart contract escrow.
+            </p>
+          </div>
+        )}
+
+        {/* Cancel Room CTA for Host */}
         {isHost && (
           <div className="mt-6 pt-6 border-t border-slate-800/80 w-full flex justify-center relative z-10">
             <button
