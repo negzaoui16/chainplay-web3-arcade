@@ -227,26 +227,31 @@ export function useMemoryDuelContract(boundGameId?: string): UseMemoryDuelContra
         if (isMock) {
           const store = useMemoryStore.getState();
           const currentAddress = getActiveAddress();
-
-          // Flip first card
-          const firstSelected = store.selectCard(cardIndex1, currentAddress);
-          if (!firstSelected) {
-            return { success: false };
-          }
-
           const mockSubMode = useAppStore.getState().mockSubMode;
-          if (mockSubMode === "p2p") {
-            broadcastP2PMessage("MEMORY_SELECT", {
-              index: cardIndex1,
-              player: currentAddress,
-            });
-          }
 
-          // Short human delay before flipping second card
-          await simulateTxDelay(300, 500);
+          // Flip first card if not already flipped
+          if (!store.cards[cardIndex1]?.isFlipped) {
+            const firstSelected = store.selectCard(cardIndex1, currentAddress);
+            if (!firstSelected) {
+              return { success: false };
+            }
+
+            if (mockSubMode === "p2p") {
+              broadcastP2PMessage("MEMORY_SELECT", {
+                index: cardIndex1,
+                player: currentAddress,
+              });
+            }
+
+            // Short human delay before flipping second card
+            await simulateTxDelay(300, 500);
+          }
 
           // Flip second card
-          store.selectCard(cardIndex2, currentAddress);
+          const secondSelected = store.selectCard(cardIndex2, currentAddress);
+          if (!secondSelected) {
+            return { success: false };
+          }
           if (mockSubMode === "p2p") {
             broadcastP2PMessage("MEMORY_SELECT", {
               index: cardIndex2,
@@ -365,8 +370,8 @@ export function useMemoryDuelContract(boundGameId?: string): UseMemoryDuelContra
         const status = store.winner ? 2 : store.isDraw ? 3 : 1;
         return {
           currentTurn: store.currentTurn,
-          p1Score: store.p1Score,
-          p2Score: store.p2Score,
+          p1Score: store.p1Pairs,
+          p2Score: store.p2Pairs,
           matchedPairs: store.matchedPairsCount,
           status,
           winner: store.winner,

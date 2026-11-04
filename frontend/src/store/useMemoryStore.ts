@@ -30,10 +30,13 @@ export interface MemoryState {
   currentTurn: string;
   p1Score: number;
   p2Score: number;
+  p1Pairs: number;
+  p2Pairs: number;
   streakMultiplier: number;
   winner: string | null;
   isDraw: boolean;
   matchedPairsCount: number;
+  lastActionTimestamp: number;
 
   // Actions
   initDeck: (
@@ -99,10 +102,13 @@ export const useMemoryStore = create<MemoryState>()((set, get) => ({
   currentTurn: "",
   p1Score: 0,
   p2Score: 0,
+  p1Pairs: 0,
+  p2Pairs: 0,
   streakMultiplier: 1,
   winner: null,
   isDraw: false,
   matchedPairsCount: 0,
+  lastActionTimestamp: 0,
 
   initDeck: (
     gameId: string,
@@ -132,10 +138,13 @@ export const useMemoryStore = create<MemoryState>()((set, get) => ({
       currentTurn: normP1,
       p1Score: 0,
       p2Score: 0,
+      p1Pairs: 0,
+      p2Pairs: 0,
       streakMultiplier: 1,
       winner: null,
       isDraw: false,
       matchedPairsCount: 0,
+      lastActionTimestamp: Date.now(),
     });
   },
 
@@ -152,6 +161,8 @@ export const useMemoryStore = create<MemoryState>()((set, get) => ({
       player2,
       p1Score,
       p2Score,
+      p1Pairs,
+      p2Pairs,
       streakMultiplier,
       matchedPairsCount,
     } = state;
@@ -180,6 +191,7 @@ export const useMemoryStore = create<MemoryState>()((set, get) => ({
         cards: updatedCards,
         firstSelected: index,
         turnPhase: "SELECT_SECOND",
+        lastActionTimestamp: Date.now(),
       });
       return true;
     }
@@ -210,10 +222,11 @@ export const useMemoryStore = create<MemoryState>()((set, get) => ({
         );
 
         const earnedPoints = 100 * streakMultiplier;
-        const nextP1Score =
-          actingPlayer === player1?.toLowerCase() ? p1Score + earnedPoints : p1Score;
-        const nextP2Score =
-          actingPlayer === player2?.toLowerCase() ? p2Score + earnedPoints : p2Score;
+        const isP1 = actingPlayer === player1?.toLowerCase();
+        const nextP1Score = isP1 ? p1Score + earnedPoints : p1Score;
+        const nextP2Score = !isP1 ? p2Score + earnedPoints : p2Score;
+        const nextP1Pairs = isP1 ? p1Pairs + 1 : p1Pairs;
+        const nextP2Pairs = !isP1 ? p2Pairs + 1 : p2Pairs;
         const nextMultiplier = streakMultiplier + 1;
         const nextPairsCount = matchedPairsCount + 1;
 
@@ -223,9 +236,9 @@ export const useMemoryStore = create<MemoryState>()((set, get) => ({
 
         if (isGameOver) {
           playVictory();
-          if (nextP1Score > nextP2Score) {
+          if (nextP1Pairs >= 5 || nextP1Pairs > nextP2Pairs) {
             gameWinner = player1;
-          } else if (nextP2Score > nextP1Score) {
+          } else if (nextP2Pairs >= 5 || nextP2Pairs > nextP1Pairs) {
             gameWinner = player2;
           } else {
             drawOutcome = true;
@@ -239,10 +252,13 @@ export const useMemoryStore = create<MemoryState>()((set, get) => ({
           turnPhase: isGameOver ? "TURN_LOCKED" : "SELECT_FIRST",
           p1Score: nextP1Score,
           p2Score: nextP2Score,
+          p1Pairs: nextP1Pairs,
+          p2Pairs: nextP2Pairs,
           streakMultiplier: nextMultiplier,
           matchedPairsCount: nextPairsCount,
           winner: gameWinner,
           isDraw: drawOutcome,
+          lastActionTimestamp: Date.now(),
         });
 
         return true;
@@ -253,6 +269,7 @@ export const useMemoryStore = create<MemoryState>()((set, get) => ({
           secondSelected: index,
           turnPhase: "TURN_LOCKED",
           streakMultiplier: 1,
+          lastActionTimestamp: Date.now(),
         });
 
         if (mismatchTimerId) {
@@ -302,6 +319,7 @@ export const useMemoryStore = create<MemoryState>()((set, get) => ({
       secondSelected: null,
       turnPhase: "SELECT_FIRST",
       currentTurn: nextTurn,
+      lastActionTimestamp: Date.now(),
     });
   },
 
@@ -324,10 +342,13 @@ export const useMemoryStore = create<MemoryState>()((set, get) => ({
       currentTurn: "",
       p1Score: 0,
       p2Score: 0,
+      p1Pairs: 0,
+      p2Pairs: 0,
       streakMultiplier: 1,
       winner: null,
       isDraw: false,
       matchedPairsCount: 0,
+      lastActionTimestamp: 0,
     });
   },
 }));
