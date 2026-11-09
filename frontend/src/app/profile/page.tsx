@@ -233,7 +233,7 @@ export default function ProfilePage(): JSX.Element {
               Accumulated Unclaimed Winnings
             </span>
             <div className="text-3xl sm:text-4xl font-black text-amber-300 font-mono tracking-tight my-2">
-              {formatEther(rewardStats.claimableWei, 4)} ETH
+              {formatEther(rewardStats.claimableWei, 0)} CPT
             </div>
             <p className="text-xs text-slate-400 leading-relaxed mb-6">
               Funds won from finished PvP matches are stored in smart contract
@@ -273,7 +273,7 @@ export default function ProfilePage(): JSX.Element {
               ) : hasClaimable ? (
                 <>
                   <Coins className="w-4 h-4" />
-                  <span>Withdraw Rewards ({formatEther(rewardStats.claimableWei, 3)} ETH)</span>
+                  <span>Withdraw Rewards ({formatEther(rewardStats.claimableWei, 0)} CPT)</span>
                 </>
               ) : (
                 <span>No Rewards Pending</span>
@@ -451,7 +451,7 @@ export default function ProfilePage(): JSX.Element {
                           </span>
                         ) : isWinner ? (
                           <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/40 font-bold">
-                            Victory (+{formatEther((match.wager * 195n) / 100n, 3)} ETH)
+                            Victory (+{formatEther(match.wager * 2n, 0)} CPT)
                           </span>
                         ) : isDraw ? (
                           <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400">

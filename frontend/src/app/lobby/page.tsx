@@ -79,7 +79,7 @@ function LobbyContent(): JSX.Element {
             PvP Battle Lobby
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 mt-1">
-            Browse open arenas, stake ETH, or create your own custom challenge
+            Browse open arenas, stake CPT, or create your own custom challenge
           </p>
         </div>
 
@@ -118,7 +118,7 @@ function LobbyContent(): JSX.Element {
               Total Staked
             </span>
             <p className="text-lg font-mono font-bold text-amber-300">
-              {formatEther(totalStakedWei, 3)} ETH
+              {formatEther(totalStakedWei, 0)} CPT
             </p>
           </div>
         </div>

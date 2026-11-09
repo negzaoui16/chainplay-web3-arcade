@@ -8,6 +8,7 @@
  * - useBattleshipContract: Commit-reveal naval warfare, firing, and board verification
  * - useMemoryDuelContract: 4x4 card duels, turns, and recall AI
  * - useRewardManager: Escrow claims, player XP, and rewards withdrawal
+ * - useHederaTokenManager: Hedera CPT balance, vault query, and EIP-712 reward redemption
  *
  * Zero `any` types. Strict TypeScript.
  */
@@ -18,3 +19,4 @@ export * from "./useTicTacToeContract";
 export * from "./useBattleshipContract";
 export * from "./useMemoryDuelContract";
 export * from "./useRewardManager";
+export * from "./useHederaTokenManager";

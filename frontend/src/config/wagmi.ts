@@ -41,9 +41,46 @@ export const hardhatChain = {
 } as const satisfies Chain;
 
 /**
+ * Hedera Testnet definition (EVM Chain ID 296).
+ */
+export const hederaTestnetChain = {
+  id: CHAIN_IDS.HEDERA_TESTNET,
+  name: "Hedera Testnet",
+  nativeCurrency: {
+    name: "Hedera",
+    symbol: "HBAR",
+    decimals: 18,
+  },
+  rpcUrls: {
+    default: {
+      http: [
+        process.env.NEXT_PUBLIC_HEDERA_TESTNET_RPC || "https://testnet.hashio.io/api",
+      ],
+    },
+    public: {
+      http: [
+        process.env.NEXT_PUBLIC_HEDERA_TESTNET_RPC || "https://testnet.hashio.io/api",
+      ],
+    },
+  },
+  blockExplorers: {
+    default: {
+      name: "HashScan",
+      url: "https://hashscan.io/testnet",
+    },
+  },
+  testnet: true,
+} as const satisfies Chain;
+
+/**
  * All supported EVM networks for ChainPlay.
  */
-export const supportedChains = [sepolia, arbitrumSepolia, hardhatChain] as const;
+export const supportedChains = [
+  hederaTestnetChain,
+  sepolia,
+  arbitrumSepolia,
+  hardhatChain,
+] as const;
 
 /**
  * Project ID for WalletConnect (v2).
@@ -59,6 +96,9 @@ export const wagmiConfig = getDefaultConfig({
   projectId: WALLET_CONNECT_PROJECT_ID,
   chains: supportedChains,
   transports: {
+    [hederaTestnetChain.id]: http(
+      process.env.NEXT_PUBLIC_HEDERA_TESTNET_RPC || "https://testnet.hashio.io/api"
+    ),
     [sepolia.id]: http(),
     [arbitrumSepolia.id]: http(),
     [hardhatChain.id]: http(

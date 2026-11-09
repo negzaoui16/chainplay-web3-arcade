@@ -14,7 +14,6 @@
  */
 
 import React, { useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   Swords,
   Shield,
@@ -59,7 +58,6 @@ export function RoomListTable({
   limit,
   showFilters = true,
 }: RoomListTableProps): JSX.Element {
-  const router = useRouter();
   const { joinGame, isPending } = useGameManager();
   const { effectiveAddress } = useChainPlayMode();
 
@@ -91,7 +89,7 @@ export function RoomListTable({
       if (res.success) {
         soundEffects.playMatchChime();
         const slug = GAME_TYPE_SLUGS[room.gameType];
-        router.push(`/game/${slug}/${room.id}`);
+        window.location.assign(`/game/${slug}/${room.id}`);
       }
     } catch (err) {
       soundEffects.playError();
@@ -104,7 +102,7 @@ export function RoomListTable({
   const handleNavigateToRoom = (room: RoomMetadata): void => {
     soundEffects.playTileClick();
     const slug = GAME_TYPE_SLUGS[room.gameType];
-    router.push(`/game/${slug}/${room.id}`);
+    window.location.assign(`/game/${slug}/${room.id}`);
   };
 
   // Filtered rooms logic

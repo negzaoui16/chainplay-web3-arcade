@@ -17,7 +17,7 @@
  * Zero `any` types. Strict TypeScript.
  */
 
-import React from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
@@ -29,10 +29,14 @@ import {
   Sparkles,
   PlusCircle,
   Play,
+  Loader2,
 } from "lucide-react";
-import { GameType, GAME_TYPE_SLUGS } from "@/types/lobby.types";
+import { GameType, GAME_TYPE_SLUGS, RoomStatus } from "@/types/lobby.types";
 import { useLobbyStore } from "@/store/useLobbyStore";
+import { useAppStore, MOCK_BOT_ADDRESS } from "@/store/useAppStore";
 import { useGameManager } from "@/hooks/useGameManager";
+import { useChainPlayMode } from "@/hooks/useChainPlayMode";
+import { useHederaTokenManager } from "@/hooks/useHederaTokenManager";
 import { soundEffects } from "@/lib/utils/soundEffects";
 
 export interface GameSelectorCardsProps {
@@ -67,7 +71,7 @@ const GAME_CARDS: readonly GameCardConfig[] = [
       "Dynamic SVG laser strike winlines",
       "Instant smart contract payout",
     ],
-    minWager: "0.01 ETH",
+    minWager: "60 CPT",
     averageDuration: "1-2 Mins",
     gradientBorder: "from-cyan-500/80 via-blue-500/50 to-cyan-500/20",
     glowClass: "group-hover:shadow-[0_0_35px_rgba(0,240,255,0.4)]",
@@ -84,7 +88,7 @@ const GAME_CARDS: readonly GameCardConfig[] = [
       "Offensive radar & defensive docks",
       "Anti-cheat cryptographic proofs",
     ],
-    minWager: "0.05 ETH",
+    minWager: "60 CPT",
     averageDuration: "3-5 Mins",
     gradientBorder: "from-pink-500/80 via-rose-500/50 to-pink-500/20",
     glowClass: "group-hover:shadow-[0_0_35px_rgba(255,0,85,0.4)]",
@@ -101,7 +105,7 @@ const GAME_CARDS: readonly GameCardConfig[] = [
       "Dynamic streak combos up to 3x",
       "Rapid recall & momentum battles",
     ],
-    minWager: "0.01 ETH",
+    minWager: "60 CPT",
     averageDuration: "2-3 Mins",
     gradientBorder: "from-amber-500/80 via-yellow-500/50 to-amber-500/20",
     glowClass: "group-hover:shadow-[0_0_35px_rgba(245,158,11,0.4)]",
@@ -115,31 +119,75 @@ export function GameSelectorCards({
   const router = useRouter();
   const rooms = useLobbyStore((s) => s.rooms);
   const { createGame, isPending } = useGameManager();
+  const { effectiveAddress } = useChainPlayMode();
+  const { stakeCptForGame } = useHederaTokenManager();
+  const [navigatingGame, setNavigatingGame] = useState<GameType | null>(null);
+  const [stakeError, setStakeError] = useState<string | null>(null);
 
   const handleQuickPlay = async (gameType: GameType): Promise<void> => {
     soundEffects.playTileClick();
+    setStakeError(null);
+    setNavigatingGame(gameType);
     const slug = GAME_TYPE_SLUGS[gameType];
 
-    // Check if there is an existing waiting room for this game
+    const mockSubMode = useAppStore.getState().mockSubMode;
+    const currentAddress =
+      effectiveAddress || useAppStore.getState().mockPlayerAddress;
+
+    // Stake 60 CPT on Hedera Testnet via MetaMask
+    const stakeRes = await stakeCptForGame(60000000000000000000n);
+    if (!stakeRes.success) {
+      setStakeError(stakeRes.error || "60 CPT stake required to enter match.");
+      setNavigatingGame(null);
+      return;
+    }
+
+    // Whenever vs Smart Bot is selected (in Mock OR On-Chain mode):
+    // Create an active game and auto-join the Smart Bot so the board activates immediately!
+    if (mockSubMode === "bot") {
+      try {
+        const room = useLobbyStore.getState().createRoom({
+          gameType,
+          wager: 60000000000000000000n, // 60 CPT
+          player1: currentAddress,
+        });
+        // Bot joins immediately
+        useLobbyStore.getState().joinRoom(room.id, MOCK_BOT_ADDRESS);
+        router.push(`/game/${slug}/${room.id}`);
+        return;
+      } catch {
+        const fallbackId = `room_bot_${Date.now()}`;
+        router.push(`/game/${slug}/${fallbackId}`);
+        return;
+      }
+    }
+
+    // In 2-Tab P2P or On-Chain Mode:
+    // Check if there is an existing waiting room hosted by another player
     const waitingRoom = rooms.find(
-      (r) => r.gameType === gameType && r.status === 0 // RoomStatus.WAITING
+      (r) =>
+        r.gameType === gameType &&
+        r.status === RoomStatus.WAITING &&
+        r.player1.toLowerCase() !== currentAddress.toLowerCase()
     );
 
     if (waitingRoom) {
-      // Navigate to game room
       router.push(`/game/${slug}/${waitingRoom.id}`);
       return;
     }
 
-    // Otherwise trigger instant room creation with default 0.01 ETH
+    // Otherwise trigger instant room creation with default 60 CPT
     try {
-      const res = await createGame(gameType, "0.01");
+      const res = await createGame(gameType, "60");
       if (res.gameId) {
         router.push(`/game/${slug}/${res.gameId}`);
+      } else {
+        router.push("/lobby");
       }
     } catch {
-      // If error occurs (e.g. user cancelled or modal needed), redirect to lobby
       router.push("/lobby");
+    } finally {
+      setNavigatingGame(null);
     }
   };
 
@@ -148,7 +196,7 @@ export function GameSelectorCards({
     if (onOpenCreateModal) {
       onOpenCreateModal(gameType);
     } else {
-      router.push(`/lobby?create=${GAME_TYPE_SLUGS[gameType]}`);
+      window.location.assign(`/lobby?create=${GAME_TYPE_SLUGS[gameType]}`);
     }
   };
 
@@ -282,7 +330,7 @@ export function GameSelectorCards({
                 <div className="flex flex-col sm:flex-row items-center gap-2.5 pt-4 border-t border-slate-800/80">
                   <button
                     type="button"
-                    disabled={isPending}
+                    disabled={isPending || navigatingGame === card.gameType}
                     onClick={() => void handleQuickPlay(card.gameType)}
                     className={`w-full sm:flex-1 py-2.5 px-4 rounded-xl font-black text-xs uppercase tracking-wider transition-all duration-200 flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 ${
                       card.accentColor === "cyan"
@@ -292,8 +340,17 @@ export function GameSelectorCards({
                         : "bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 text-slate-950 shadow-amber-glow hover:shadow-[0_0_25px_rgba(245,158,11,0.5)]"
                     }`}
                   >
-                    <Play className="w-3.5 h-3.5 fill-current" />
-                    <span>Quick Play</span>
+                    {navigatingGame === card.gameType ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Staking 60 CPT...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-3.5 h-3.5 fill-current" />
+                        <span>Quick Play</span>
+                      </>
+                    )}
                   </button>
 
                   <button
@@ -306,6 +363,12 @@ export function GameSelectorCards({
                     <span className="hidden sm:inline">Create</span>
                   </button>
                 </div>
+
+                {stakeError && navigatingGame === null && (
+                  <p className="mt-2 text-center text-[10px] text-rose-400 font-mono">
+                    {stakeError}
+                  </p>
+                )}
               </div>
             </motion.div>
           );

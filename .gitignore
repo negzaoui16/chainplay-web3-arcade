@@ -1,4 +1,49 @@
-.superpowers/
+# Dependencies
 node_modules/
-.next/
+*/node_modules/
 
+# Next.js & Build Outputs
+.next/
+*/.next/
+out/
+build/
+dist/
+
+# Hardhat & Smart Contracts artifacts/cache
+artifacts/
+*/artifacts/
+cache/
+*/cache/
+typechain-types/
+*/typechain-types/
+
+# Environment & Secrets (NEVER COMMIT!)
+.env
+.env.*
+.env*.local
+*.env
+*.env.local
+!.env.example
+!*.env.example
+
+# Logs & Debug
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing & Coverage
+coverage/
+*/coverage/
+.nyc_output/
+
+# Operating System & IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Project internal tools
+.superpowers/

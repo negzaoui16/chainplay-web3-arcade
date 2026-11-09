@@ -287,7 +287,7 @@ function runVerification(): void {
   assert(formatCountdown(125) === "02:05", "formatCountdown 125s failed");
   assert(formatCountdown(-5) === "00:00", "formatCountdown negative failed");
 
-  assert(formatWager(50000000000000000n) === "0.05 ETH", "formatWager failed");
+  assert(formatWager(60000000000000000000n) === "60 CPT", "formatWager failed");
   assert(formatPercent(250) === "2.5%", "formatPercent failed");
 
   const formattedTs = formatTimestamp(1730725200000);

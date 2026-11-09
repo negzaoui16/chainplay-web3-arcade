@@ -8,3 +8,5 @@ export * from "./abis/TicTacToeABI";
 export * from "./abis/BattleshipABI";
 export * from "./abis/MemoryDuelABI";
 export * from "./abis/RewardManagerABI";
+export * from "./abis/ChainPlayTokenABI";
+export * from "./abis/TokenManagerABI";

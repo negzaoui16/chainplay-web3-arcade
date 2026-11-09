@@ -8,7 +8,12 @@ const emptyModule = path.resolve(__dirname, "src/lib/empty-module.js");
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  webpack: (config) => {
+  webpack: (config, { dev, isServer }) => {
+    // Disable eval in devtool to prevent CSP (Content Security Policy) eval blocking in strict browsers/extensions
+    if (dev) {
+      config.devtool = false;
+    }
+
     config.resolve.fallback = {
       ...config.resolve.fallback,
       fs: false,

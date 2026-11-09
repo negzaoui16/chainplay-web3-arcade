@@ -32,6 +32,7 @@ import {
   X,
   Sparkles,
   ArrowRightLeft,
+  Loader2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -39,6 +40,9 @@ import {
   MOCK_PLAYER_1_ADDRESS,
 } from "@/store/useAppStore";
 import { useRewardManager } from "@/hooks/useRewardManager";
+import { useHederaTokenManager } from "@/hooks/useHederaTokenManager";
+import { useAccount } from "wagmi";
+import { CHAIN_IDS } from "@/config/constants";
 import { formatEther } from "@/lib/utils/formatters";
 import { soundEffects } from "@/lib/utils/soundEffects";
 
@@ -73,6 +77,69 @@ export function Navbar(): JSX.Element {
   // Rewards hook
   const { rewardStats } = useRewardManager();
   const hasClaimableRewards = rewardStats.claimableWei > 0n;
+
+  // Hedera on-chain token hook
+  const { address, chainId, isConnected } = useAccount();
+  const { formattedCptBalance, refreshBalances: refreshCptBalances } = useHederaTokenManager();
+  const isHedera = chainId === CHAIN_IDS.HEDERA_TESTNET;
+
+  const [isClaimingFaucet, setIsClaimingFaucet] = useState<boolean>(false);
+  const [faucetMessage, setFaucetMessage] = useState<string | null>(null);
+
+  const handleClaimFaucet = async (): Promise<void> => {
+    if (!address) return;
+    setIsClaimingFaucet(true);
+    setFaucetMessage(null);
+    try {
+      soundEffects.playTileClick();
+      const res = await fetch("/api/faucet/claim-cpt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerAddress: address }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        soundEffects.playVictory();
+        setFaucetMessage("Claimed +500 CPT!");
+        await refreshCptBalances();
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("cpt-balance-updated"));
+        }
+        setTimeout(() => setFaucetMessage(null), 3500);
+      } else {
+        setFaucetMessage(data.error || "Failed");
+        soundEffects.playError();
+        setTimeout(() => setFaucetMessage(null), 3500);
+      }
+    } catch {
+      setFaucetMessage("Error");
+      soundEffects.playError();
+      setTimeout(() => setFaucetMessage(null), 3500);
+    } finally {
+      setIsClaimingFaucet(false);
+    }
+  };
+
+  const handleAddTokenToMetaMask = async (): Promise<void> => {
+    if (typeof window !== "undefined" && (window as unknown as { ethereum?: { request: (args: unknown) => Promise<unknown> } }).ethereum) {
+      try {
+        soundEffects.playTileClick();
+        await (window as unknown as { ethereum: { request: (args: unknown) => Promise<unknown> } }).ethereum.request({
+          method: "wallet_watchAsset",
+          params: {
+            type: "ERC20",
+            options: {
+              address: "0x2D0E84d043Ae598F528FE39229e3DC0F8845A98a",
+              symbol: "CPT",
+              decimals: 18,
+            },
+          },
+        });
+      } catch (err) {
+        console.warn("Failed to add CPT to MetaMask:", err);
+      }
+    }
+  };
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -178,13 +245,63 @@ export function Navbar(): JSX.Element {
               >
                 <Coins className="w-4 h-4 text-amber-400 animate-bounce" />
                 <span className="text-xs font-mono font-bold tracking-tight">
-                  +{formatEther(rewardStats.claimableWei, 3)} ETH
+                  +{formatEther(rewardStats.claimableWei, 0)} CPT
                 </span>
                 <span className="text-[10px] uppercase font-bold tracking-wider bg-amber-400 text-black px-1.5 py-0.2 rounded-full">
                   Claim
                 </span>
               </Link>
             )}
+
+            {/* Hedera CPT Token Balance Pill & Faucet (Visible when connected) */}
+            {isConnected && isHedera && (
+              <div className="hidden sm:flex items-center gap-2">
+                <div
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900/90 border border-cyan-500/50 shadow-cyan-glow text-xs font-mono font-bold text-cyan-300"
+                  title={`ChainPlay Token (CPT) Balance on Hedera Testnet: ${formattedCptBalance} CPT`}
+                >
+                  <Coins className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>
+                    {Number(formattedCptBalance).toLocaleString(undefined, {
+                      maximumFractionDigits: 1,
+                    })}{" "}
+                    CPT
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={isClaimingFaucet}
+                  onClick={handleClaimFaucet}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-emerald-500/20 to-teal-500/20 hover:from-emerald-500/30 hover:to-teal-500/30 border border-emerald-500/50 text-emerald-300 text-xs font-bold transition-all shadow-sm disabled:opacity-50"
+                  title="Claim 500 CPT Starter Tokens from Hedera Testnet Faucet"
+                >
+                  {isClaimingFaucet ? (
+                    <>
+                      <Loader2 className="w-3 h-3 animate-spin text-emerald-400" />
+                      <span>Sending...</span>
+                    </>
+                  ) : faucetMessage ? (
+                    <span>{faucetMessage}</span>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3 h-3 text-emerald-400" />
+                      <span>+500 CPT</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+
+            {/* Always Visible: Add CPT to MetaMask Button */}
+            <button
+              type="button"
+              onClick={handleAddTokenToMetaMask}
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/40 hover:border-amber-500/70 text-amber-300 hover:text-amber-200 text-xs font-bold transition-all shadow-sm"
+              title="Import CPT Token (0x2D0E...A98a) into MetaMask in 1 Click"
+            >
+              <span>🦊 Add CPT</span>
+            </button>
 
             {/* Mock Local vs On-Chain Mode Switcher */}
             <div className="flex items-center p-0.5 rounded-full bg-slate-900/90 border border-slate-700/80 shadow-inner">
@@ -227,9 +344,8 @@ export function Navbar(): JSX.Element {
               </button>
             </div>
 
-            {/* In Mock Mode: Sub-Mode Selector (Smart Bot vs P2P Cross-Tab) */}
-            {isMockMode && (
-              <div className="relative" ref={dropdownRef}>
+            {/* Sub-Mode Selector (Smart Bot vs P2P Cross-Tab) */}
+            <div className="relative" ref={dropdownRef}>
                 <button
                   type="button"
                   onClick={() => {
@@ -348,7 +464,6 @@ export function Navbar(): JSX.Element {
                   )}
                 </AnimatePresence>
               </div>
-            )}
 
             {/* Sound FX Mute Toggle Button */}
             <button
@@ -539,7 +654,7 @@ export function Navbar(): JSX.Element {
                   <span className="text-xs font-bold">Unclaimed Rewards</span>
                 </div>
                 <span className="text-sm font-mono font-extrabold text-amber-400">
-                  +{formatEther(rewardStats.claimableWei, 3)} ETH
+                  +{formatEther(rewardStats.claimableWei, 0)} CPT
                 </span>
               </Link>
             )}

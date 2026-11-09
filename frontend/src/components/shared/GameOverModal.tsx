@@ -40,9 +40,9 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
 import { formatWager, formatAddress } from "@/lib/utils/formatters";
-import { PLATFORM_FEE_BPS, BPS_DENOMINATOR } from "@/config/constants";
 import { soundEffects } from "@/lib/utils/soundEffects";
-import { useRewardManager } from "@/hooks/useRewardManager";
+import { useHederaTokenManager } from "@/hooks/useHederaTokenManager";
+import { isAddress } from "viem";
 
 export type GameOutcome = "victory" | "defeat" | "draw";
 
@@ -83,6 +83,16 @@ export interface GameOverModalProps {
   readonly reason?: string;
 
   /**
+   * Identifier of the concluded game match
+   */
+  readonly gameId?: string;
+
+  /**
+   * Game type number (0: TicTacToe, 1: Battleship, 2: MemoryDuel)
+   */
+  readonly gameType?: number;
+
+  /**
    * Callback fired on "Play Again" CTA
    */
   readonly onPlayAgain?: () => void;
@@ -106,19 +116,36 @@ export function GameOverModal({
   wager,
   xpEarned,
   reason,
+  gameId,
+  gameType = 0,
   onPlayAgain,
   onBackToLobby,
   onClose,
 }: GameOverModalProps): JSX.Element | null {
-  const { withdrawRewards, isPending: isWithdrawing } = useRewardManager();
-  const [withdrawnSuccess, setWithdrawnSuccess] = useState<boolean>(false);
-  const [withdrawError, setWithdrawError] = useState<string | null>(null);
+  const {
+    claimRewardWithVoucher,
+    stakeCptForGame,
+    refreshBalances: refreshHederaBalances,
+  } = useHederaTokenManager();
+
+  // Hedera on-chain claim state
+  const [isClaimingHedera, setIsClaimingHedera] = useState<boolean>(false);
+  const [hederaClaimSuccess, setHederaClaimSuccess] = useState<boolean>(false);
+  const [hederaTxHash, setHederaTxHash] = useState<string | null>(null);
+  const [hederaError, setHederaError] = useState<string | null>(null);
+
+  // Play Again on-chain stake state
+  const [isStakingRematch, setIsStakingRematch] = useState<boolean>(false);
+  const [rematchError, setRematchError] = useState<string | null>(null);
 
   // Trigger celebration or defeat audio + confetti
   useEffect(() => {
     if (!isOpen) {
-      setWithdrawnSuccess(false);
-      setWithdrawError(null);
+      setHederaClaimSuccess(false);
+      setHederaTxHash(null);
+      setHederaError(null);
+      setIsStakingRematch(false);
+      setRematchError(null);
       return;
     }
 
@@ -169,28 +196,120 @@ export function GameOverModal({
 
   // Calculate Pot Economics
   const grossPot = wager * 2n;
-  const platformFee =
-    (grossPot * BigInt(PLATFORM_FEE_BPS)) / BigInt(BPS_DENOMINATOR);
-  const netPayout = grossPot > platformFee ? grossPot - platformFee : 0n;
 
   // Default XP if not explicitly supplied
   const effectiveXp =
     xpEarned ?? (outcome === "victory" ? 250 : outcome === "draw" ? 100 : 50);
 
-  const handleWithdraw = async (): Promise<void> => {
-    setWithdrawError(null);
+  const handleClaimHedera = async (): Promise<void> => {
+    let playerAddress: string | undefined = undefined;
+
+    // Prioritize currently active account from MetaMask directly
+    if (typeof window !== "undefined") {
+      const eth = (window as unknown as {
+        ethereum?: {
+          selectedAddress?: string;
+          request?: (args: { method: string }) => Promise<string[]>;
+        };
+      }).ethereum;
+
+      if (eth?.request) {
+        try {
+          const accs = await eth.request({ method: "eth_requestAccounts" });
+          if (accs && accs[0] && isAddress(accs[0])) {
+            playerAddress = accs[0];
+          }
+        } catch {
+          // ignore if user dismissed prompt
+        }
+      }
+
+      if (!playerAddress && eth?.selectedAddress && isAddress(eth.selectedAddress)) {
+        playerAddress = eth.selectedAddress;
+      }
+    }
+
+    if (!playerAddress && currentUserAddress && isAddress(currentUserAddress)) {
+      playerAddress = currentUserAddress;
+    }
+
+    if (!playerAddress || !isAddress(playerAddress)) {
+      setHederaError("Please connect your MetaMask wallet on Hedera Testnet first.");
+      return;
+    }
+    setHederaError(null);
+    setIsClaimingHedera(true);
+
     try {
       soundEffects.playTileClick();
-      const res = await withdrawRewards();
-      if (res.success) {
-        setWithdrawnSuccess(true);
+      // 1. Request EIP-712 voucher signed by Hedera operator
+      const res = await fetch("/api/rewards/issue-voucher", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          gameId: gameId || `chainplay_match_${Date.now()}`,
+          gameType: gameType ?? 0,
+          player: playerAddress,
+          outcome,
+        }),
+      });
+
+      const data = await res.json();
+      if (!data.success || !data.voucher || !data.signature) {
+        throw new Error(data.error || "Failed to generate signed reward voucher");
+      }
+
+      // 2. Submit on-chain claim to TokenManager on Hedera Testnet
+      const claimRes = await claimRewardWithVoucher(
+        {
+          gameId: data.voucher.gameId,
+          gameType: data.voucher.gameType,
+          player: data.voucher.player,
+          winAmount: BigInt(data.voucher.winAmount),
+          participationAmount: BigInt(data.voucher.participationAmount),
+          nonce: BigInt(data.voucher.nonce),
+          deadline: BigInt(data.voucher.deadline),
+        },
+        data.signature
+      );
+
+      if (claimRes.success && claimRes.txHash) {
+        setHederaClaimSuccess(true);
+        setHederaTxHash(claimRes.txHash);
         soundEffects.playVictory();
+        await refreshHederaBalances();
+      } else {
+        throw new Error(claimRes.error || "Transaction was rejected or failed on Hedera.");
+      }
+    } catch (err: unknown) {
+      setHederaError(err instanceof Error ? err.message : "Hedera reward claim failed.");
+      soundEffects.playError();
+    } finally {
+      setIsClaimingHedera(false);
+    }
+  };
+
+  const handlePlayAgainClick = async (): Promise<void> => {
+    setRematchError(null);
+    setIsStakingRematch(true);
+    try {
+      soundEffects.playTileClick();
+      // Stake 60 CPT on Hedera Testnet via MetaMask for the rematch
+      const stakeRes = await stakeCptForGame(60000000000000000000n);
+      if (!stakeRes.success) {
+        setRematchError(stakeRes.error || "60 CPT stake required for rematch.");
+        soundEffects.playError();
+        return;
+      }
+      soundEffects.playMatchChime();
+      if (onPlayAgain) {
+        onPlayAgain();
       }
     } catch (err) {
-      setWithdrawError(
-        err instanceof Error ? err.message : "Failed to claim rewards."
-      );
+      setRematchError(err instanceof Error ? err.message : "Staking failed.");
       soundEffects.playError();
+    } finally {
+      setIsStakingRematch(false);
     }
   };
 
@@ -304,36 +423,42 @@ export function GameOverModal({
             <div className="flex items-center justify-between text-xs text-slate-400">
               <span>Player Stake (x2)</span>
               <span className="font-mono text-slate-200">
-                {formatWager(wager)} each
+                {wager > 0n ? formatWager(wager) : "60 CPT"} each
               </span>
             </div>
 
             <div className="flex items-center justify-between text-xs text-slate-400">
               <span>Gross Pot Size</span>
               <span className="font-mono text-slate-200">
-                {formatWager(grossPot)}
+                {grossPot > 0n ? formatWager(grossPot) : "120 CPT"}
               </span>
             </div>
 
             <div className="flex items-center justify-between text-xs text-slate-400">
-              <span>Platform Fee (2.5%)</span>
+              <span>Platform Fee (0%)</span>
               <span className="font-mono text-slate-400">
-                -{formatWager(platformFee)}
+                0 CPT
               </span>
             </div>
 
             <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
-                {outcome === "victory" ? "Your Net Winnings" : "Winner Payout"}
+                {outcome === "victory" ? "Your Net Winnings" : "Your Outcome"}
               </span>
               <span
                 className={`font-mono font-black text-base ${
                   outcome === "victory"
                     ? "text-amber-400 drop-shadow-[0_0_10px_rgba(245,158,11,0.5)]"
+                    : outcome === "defeat"
+                    ? "text-rose-400"
                     : "text-slate-300"
                 }`}
               >
-                +{formatWager(netPayout)}
+                {outcome === "victory"
+                  ? "+120 CPT"
+                  : outcome === "defeat"
+                  ? "0 CPT (-60 CPT Staked)"
+                  : "0 CPT (Stalemate)"}
               </span>
             </div>
 
@@ -348,39 +473,76 @@ export function GameOverModal({
             </div>
           </div>
 
-          {/* Direct Withdraw CTA if Won */}
+          {/* ============================================================ */}
+          {/* Hedera Testnet CPT Rewards Box (Live On-Chain)               */}
+          {/* STRICT RULE: Render ONLY on Victory! Defeat/Draw = 0 CPT     */}
+          {/* ============================================================ */}
           {outcome === "victory" && (
-            <div className="mt-4">
-              {withdrawnSuccess ? (
-                <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/50 text-emerald-300 text-xs font-bold flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(16,185,129,0.3)]">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span>Winnings Claimed & Transferred to Wallet!</span>
+            <div className="mt-4 p-4 rounded-2xl bg-gradient-to-b from-[#101726] to-[#0A0E17] border border-cyan-500/40 shadow-cyan-glow/20">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-cyan-500/20 text-cyan-400">
+                    <Coins className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black uppercase tracking-wider text-white">
+                      Hedera CPT On-Chain Reward
+                    </h4>
+                    <span className="text-[10px] font-mono text-cyan-300">
+                      Hedera Testnet (296) • TokenManager Vault
+                    </span>
+                  </div>
+                </div>
+
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black font-mono bg-cyan-950 text-cyan-300 border border-cyan-500/40">
+                  +120 CPT
+                </span>
+              </div>
+
+              {hederaClaimSuccess ? (
+                <div className="mt-3 p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs flex flex-col gap-1.5">
+                  <div className="flex items-center gap-2 font-bold">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>CPT Tokens Successfully Transferred On-Chain!</span>
+                  </div>
+                  {hederaTxHash && (
+                    <a
+                      href={`https://hashscan.io/testnet/transaction/${hederaTxHash}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[11px] font-mono text-cyan-400 hover:text-cyan-300 underline flex items-center gap-1"
+                    >
+                      <span>View on HashScan Testnet ({formatAddress(hederaTxHash)}) ↗</span>
+                    </a>
+                  )}
                 </div>
               ) : (
-                <button
-                  type="button"
-                  disabled={isWithdrawing}
-                  onClick={handleWithdraw}
-                  className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 text-black font-extrabold text-xs uppercase tracking-wider shadow-amber-glow hover:shadow-[0_0_25px_rgba(245,158,11,0.5)] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                >
-                  {isWithdrawing ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Claiming Winnings...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Coins className="w-4 h-4" />
-                      <span>Instant Claim {formatWager(netPayout)}</span>
-                    </>
-                  )}
-                </button>
-              )}
+                <div className="mt-3">
+                  <button
+                    type="button"
+                    disabled={isClaimingHedera}
+                    onClick={handleClaimHedera}
+                    className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-cyan-500 via-blue-500 to-cyan-500 hover:from-cyan-400 hover:to-blue-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-cyan-glow transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {isClaimingHedera ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                        <span>Confirming on Hedera Testnet (MetaMask)...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4" />
+                        <span>Claim 120 CPT with MetaMask</span>
+                      </>
+                    )}
+                  </button>
 
-              {withdrawError && (
-                <p className="mt-1 text-center text-xs text-rose-400 font-mono">
-                  {withdrawError}
-                </p>
+                  {hederaError && (
+                    <p className="mt-2 text-center text-[11px] text-rose-400 font-mono">
+                      {hederaError}
+                    </p>
+                  )}
+                </div>
               )}
             </div>
           )}
@@ -390,14 +552,21 @@ export function GameOverModal({
             {onPlayAgain && (
               <button
                 type="button"
-                onClick={() => {
-                  soundEffects.playTileClick();
-                  onPlayAgain();
-                }}
-                className="w-full sm:flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black font-extrabold text-xs uppercase tracking-wider shadow-cyan-glow hover:shadow-cyan-glow-lg transition-all flex items-center justify-center gap-2"
+                disabled={isStakingRematch}
+                onClick={handlePlayAgainClick}
+                className="w-full sm:flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black font-extrabold text-xs uppercase tracking-wider shadow-cyan-glow hover:shadow-cyan-glow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
               >
-                <RotateCcw className="w-4 h-4" />
-                <span>Play Again</span>
+                {isStakingRematch ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-black" />
+                    <span>Staking 60 CPT (MetaMask)...</span>
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw className="w-4 h-4" />
+                    <span>Play Again (60 CPT)</span>
+                  </>
+                )}
               </button>
             )}
 
@@ -411,19 +580,25 @@ export function GameOverModal({
                 className="w-full sm:flex-1 py-3 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-slate-200 font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2"
               >
                 <Home className="w-4 h-4 text-slate-400" />
-                <span>Back to Lobby</span>
+                <span>Back to Home</span>
               </button>
             ) : (
               <Link
-                href="/lobby"
+                href="/"
                 onClick={() => soundEffects.playTileClick()}
                 className="w-full sm:flex-1 py-3 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-slate-200 font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2"
               >
                 <Home className="w-4 h-4 text-slate-400" />
-                <span>Back to Lobby</span>
+                <span>Back to Home</span>
               </Link>
             )}
           </div>
+
+          {rematchError && (
+            <p className="mt-2 text-center text-xs text-rose-400 font-mono">
+              {rematchError}
+            </p>
+          )}
         </motion.div>
       </div>
     </AnimatePresence>

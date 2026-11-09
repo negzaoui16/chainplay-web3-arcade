@@ -89,7 +89,7 @@ interface ToastMessage {
   txHash?: `0x${string}` | string | null;
 }
 
-const DEFAULT_WAGER = 10000000000000000n; // 0.01 ETH
+const DEFAULT_WAGER = 60000000000000000000n; // 60 CPT
 const TURN_TIMEOUT_SECONDS = 60;
 
 export function TicTacToeArena({
@@ -238,7 +238,7 @@ export function TicTacToeArena({
   const isBotOpponent =
     normP2 === MOCK_BOT_ADDRESS.toLowerCase() ||
     normP2 === "bot" ||
-    (isMock && mockSubMode === "bot");
+    mockSubMode === "bot";
 
   // --------------------------------------------------------------------------
   // Move Submission Handler
@@ -334,25 +334,23 @@ export function TicTacToeArena({
   // --------------------------------------------------------------------------
   const handleRematch = useCallback((): void => {
     soundEffects.playTileClick();
-    initGame(activeGameId, effectiveP1, effectiveP2);
+    const nextGameId = `ttt_${Date.now()}`;
+    initGame(nextGameId, effectiveP1, effectiveP2);
     setToast(null);
 
     // If opponent is Bot and Bot is Player 1, trigger its opening move
     if (
-      isMock &&
       mockSubMode === "bot" &&
       effectiveP1.toLowerCase() === MOCK_BOT_ADDRESS.toLowerCase()
     ) {
-      void triggerBotTurn(GameType.TIC_TAC_TOE, activeGameId);
+      void triggerBotTurn(GameType.TIC_TAC_TOE, nextGameId);
     }
 
     onRematch?.();
   }, [
     initGame,
-    activeGameId,
     effectiveP1,
     effectiveP2,
-    isMock,
     mockSubMode,
     onRematch,
   ]);
@@ -362,7 +360,7 @@ export function TicTacToeArena({
     if (onBackToLobby) {
       onBackToLobby();
     } else {
-      router.push("/lobby");
+      router.push("/");
     }
   }, [onBackToLobby, router]);
 
@@ -380,10 +378,10 @@ export function TicTacToeArena({
             type="button"
             onClick={handleBackToLobby}
             className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white transition-all flex items-center gap-1.5 text-xs font-bold"
-            aria-label="Back to Lobby"
+            aria-label="Back to Home"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span className="hidden sm:inline">Lobby</span>
+            <span className="hidden sm:inline">Home</span>
           </button>
 
           <div className="flex items-center gap-2">
@@ -570,6 +568,8 @@ export function TicTacToeArena({
         currentUserAddress={effectiveAddress}
         wager={initialWager}
         reason={outcomeReason}
+        gameId={activeGameId}
+        gameType={0}
         onPlayAgain={handleRematch}
         onBackToLobby={handleBackToLobby}
       />

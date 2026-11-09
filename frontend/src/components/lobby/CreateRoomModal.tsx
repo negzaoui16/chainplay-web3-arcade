@@ -15,7 +15,6 @@
  */
 
 import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   X,
@@ -45,7 +44,7 @@ export interface CreateRoomModalProps {
   readonly onRoomCreated?: (roomId: string, gameType: GameType) => void;
 }
 
-const WAGER_PRESETS: readonly string[] = ["0.01", "0.05", "0.10"];
+const WAGER_PRESETS: readonly string[] = ["60", "120", "240"];
 
 export function CreateRoomModal({
   isOpen,
@@ -53,11 +52,10 @@ export function CreateRoomModal({
   defaultGameType = GameType.TIC_TAC_TOE,
   onRoomCreated,
 }: CreateRoomModalProps): JSX.Element | null {
-  const router = useRouter();
   const { createGame, isPending, error: contractError } = useGameManager();
 
   const [selectedGame, setSelectedGame] = useState<GameType>(defaultGameType);
-  const [wager, setWager] = useState<string>("0.01");
+  const [wager, setWager] = useState<string>("60");
   const [customWager, setCustomWager] = useState<string>("");
   const [isPrivate, setIsPrivate] = useState<boolean>(false);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -88,7 +86,7 @@ export function CreateRoomModal({
   const effectiveWager = customWager.trim() !== "" ? customWager : wager;
   const wagerWei = parseEther(effectiveWager);
   const totalPotWei = wagerWei * 2n;
-  const winnerNetPotWei = (totalPotWei * 975n) / 1000n; // 2.5% protocol escrow fee
+  const winnerNetPotWei = totalPotWei; // 100% full pot to winner (60 CPT + 60 CPT = 120 CPT)
 
   const handleSelectPreset = (amount: string): void => {
     soundEffects.playTileClick();
@@ -111,13 +109,13 @@ export function CreateRoomModal({
 
     const numericWager = parseFloat(effectiveWager);
     if (isNaN(numericWager) || numericWager <= 0) {
-      setLocalError("Please enter a valid stake amount greater than 0 ETH.");
+      setLocalError("Please enter a valid stake amount greater than 0 CPT.");
       soundEffects.playError();
       return;
     }
 
-    if (numericWager < 0.001) {
-      setLocalError("Minimum stake is 0.001 ETH.");
+    if (numericWager < 1) {
+      setLocalError("Minimum stake is 1 CPT.");
       soundEffects.playError();
       return;
     }
@@ -133,7 +131,7 @@ export function CreateRoomModal({
           onRoomCreated(result.gameId, selectedGame);
         } else {
           const slug = GAME_TYPE_SLUGS[selectedGame];
-          router.push(`/game/${slug}/${result.gameId}`);
+          window.location.assign(`/game/${slug}/${result.gameId}`);
         }
       }
     } catch (err) {
@@ -260,10 +258,10 @@ export function CreateRoomModal({
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-                Stake per Player (ETH)
+                Stake per Player (CPT)
               </label>
               <span className="text-[11px] text-slate-400 font-mono">
-                Active: {effectiveWager || "0"} ETH
+                Active: {effectiveWager || "0"} CPT
               </span>
             </div>
 
@@ -280,7 +278,7 @@ export function CreateRoomModal({
                       : "bg-slate-900/80 text-slate-300 border-slate-800 hover:border-slate-700"
                   }`}
                 >
-                  {preset} ETH
+                  {preset} CPT
                 </button>
               ))}
             </div>
@@ -289,14 +287,14 @@ export function CreateRoomModal({
             <div className="relative">
               <input
                 type="text"
-                placeholder="Or enter custom ETH amount..."
+                placeholder="Or enter custom CPT amount..."
                 value={customWager}
                 onChange={handleCustomWagerChange}
                 disabled={isPending}
                 className="w-full py-2.5 pl-3.5 pr-14 rounded-xl bg-slate-950/80 border border-slate-800 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 text-xs font-mono text-white placeholder-slate-500 transition-colors"
               />
               <span className="absolute right-3.5 top-2.5 text-xs font-mono font-bold text-slate-400 pointer-events-none">
-                ETH
+                CPT
               </span>
             </div>
           </div>
@@ -312,12 +310,12 @@ export function CreateRoomModal({
                   Winner Takes All Pot
                 </span>
                 <p className="text-sm font-mono font-black text-amber-300">
-                  {formatEther(winnerNetPotWei, 4)} ETH
+                  {formatEther(winnerNetPotWei, 4)} CPT
                 </p>
               </div>
             </div>
-            <span className="text-[10px] text-slate-400 font-mono text-right">
-              2.5% protocol escrow fee
+            <span className="text-[10px] text-emerald-400 font-mono text-right font-semibold">
+              0% fee • 100% to Winner
             </span>
           </div>
 
@@ -384,7 +382,7 @@ export function CreateRoomModal({
               ) : (
                 <>
                   <Coins className="w-4 h-4" />
-                  <span>Create Arena & Stake {effectiveWager} ETH</span>
+                  <span>Create Arena & Stake {effectiveWager} CPT</span>
                 </>
               )}
             </button>

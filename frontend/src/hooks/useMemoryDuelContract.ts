@@ -159,7 +159,8 @@ export function useMemoryDuelContract(boundGameId?: string): UseMemoryDuelContra
       setError(null);
 
       try {
-        if (isMock) {
+        const mockSubMode = useAppStore.getState().mockSubMode;
+        if (isMock || mockSubMode === "bot") {
           await simulateTxDelay(350, 700);
 
           const store = useMemoryStore.getState();
@@ -224,7 +225,8 @@ export function useMemoryDuelContract(boundGameId?: string): UseMemoryDuelContra
       setError(null);
 
       try {
-        if (isMock) {
+        const mockSubMode = useAppStore.getState().mockSubMode;
+        if (isMock || mockSubMode === "bot") {
           const store = useMemoryStore.getState();
           const currentAddress = getActiveAddress();
           const mockSubMode = useAppStore.getState().mockSubMode;
@@ -316,7 +318,8 @@ export function useMemoryDuelContract(boundGameId?: string): UseMemoryDuelContra
       setError(null);
 
       try {
-        if (isMock) {
+        const mockSubMode = useAppStore.getState().mockSubMode;
+        if (isMock || mockSubMode === "bot") {
           await simulateTxDelay(300, 600);
           const activeAddress = getActiveAddress();
           useMemoryStore.setState({
@@ -365,7 +368,8 @@ export function useMemoryDuelContract(boundGameId?: string): UseMemoryDuelContra
 
   const getGameState = useCallback(
     async (gameId: string): Promise<MemoryGameStateData | null> => {
-      if (isMock) {
+      const mockSubMode = useAppStore.getState().mockSubMode;
+      if (isMock || mockSubMode === "bot") {
         const store = useMemoryStore.getState();
         const status = store.winner ? 2 : store.isDraw ? 3 : 1;
         return {

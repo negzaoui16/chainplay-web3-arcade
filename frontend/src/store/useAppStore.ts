@@ -127,10 +127,10 @@ function getOrCreateTabSessionId(): { sessionId: string; defaultAddress: string 
 const tabInfo = getOrCreateTabSessionId();
 const saved = loadPersistedSettings();
 
-const initialMockMode = saved.isMockMode ?? true;
+const initialMockMode = saved.isMockMode ?? false;
 const initialMockSubMode: MockSubMode = saved.mockSubMode ?? "bot";
 const initialSoundEnabled = saved.soundEnabled ?? true;
-const initialActiveChainId = saved.activeChainId ?? CHAIN_IDS.SEPOLIA;
+const initialActiveChainId = saved.activeChainId ?? CHAIN_IDS.HEDERA_TESTNET;
 const isExplicitTab2 = tabInfo.defaultAddress === MOCK_PLAYER_2_ADDRESS;
 const initialMockPlayerAddress = isExplicitTab2
   ? MOCK_PLAYER_2_ADDRESS

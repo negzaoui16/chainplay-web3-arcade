@@ -203,7 +203,8 @@ export function useBattleshipContract(boundGameId?: string): UseBattleshipContra
       setError(null);
 
       try {
-        if (isMock) {
+        const mockSubMode = useAppStore.getState().mockSubMode;
+        if (isMock || mockSubMode === "bot") {
           await simulateTxDelay(350, 700);
 
           const store = useBattleshipStore.getState();
@@ -269,7 +270,8 @@ export function useBattleshipContract(boundGameId?: string): UseBattleshipContra
       setError(null);
 
       try {
-        if (isMock) {
+        const mockSubMode = useAppStore.getState().mockSubMode;
+        if (isMock || mockSubMode === "bot") {
           const store = useBattleshipStore.getState();
           const shotQueued = store.fireShotOptimistic(x, y);
 
@@ -339,7 +341,8 @@ export function useBattleshipContract(boundGameId?: string): UseBattleshipContra
       setError(null);
 
       try {
-        if (isMock) {
+        const mockSubMode = useAppStore.getState().mockSubMode;
+        if (isMock || mockSubMode === "bot") {
           const store = useBattleshipStore.getState();
           const result = params.isHit
             ? params.sunkShipId > 0
@@ -440,7 +443,8 @@ export function useBattleshipContract(boundGameId?: string): UseBattleshipContra
       setError(null);
 
       try {
-        if (isMock) {
+        const mockSubMode = useAppStore.getState().mockSubMode;
+        if (isMock || mockSubMode === "bot") {
           await simulateTxDelay(300, 600);
           const valid = useBattleshipStore
             .getState()
@@ -494,7 +498,8 @@ export function useBattleshipContract(boundGameId?: string): UseBattleshipContra
       setError(null);
 
       try {
-        if (isMock) {
+        const mockSubMode = useAppStore.getState().mockSubMode;
+        if (isMock || mockSubMode === "bot") {
           await simulateTxDelay(300, 600);
           const activeAddress = getActiveAddress();
           useBattleshipStore.setState({

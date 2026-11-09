@@ -80,12 +80,12 @@ export type MemoryTokenSymbol = (typeof MEMORY_CARDS)[number];
 // ==========================================
 
 export const DEFAULT_WAGERS: readonly string[] = [
-  "0.01",
-  "0.05",
-  "0.1",
+  "60",
+  "120",
+  "240",
 ] as const;
 
-export const PLATFORM_FEE_BPS = 250; // 2.5% platform fee
+export const PLATFORM_FEE_BPS = 0; // 0% platform fee for CPT battles (winner takes full 120 CPT pot)
 export const BPS_DENOMINATOR = 10000;
 
 // ==========================================
@@ -156,6 +156,7 @@ export const CHAIN_IDS = {
   SEPOLIA: 11155111,
   ARBITRUM_SEPOLIA: 421614,
   HARDHAT: 31337,
+  HEDERA_TESTNET: 296,
 } as const;
 
 export const ZERO_ADDRESS: `0x${string}` =

@@ -110,7 +110,7 @@ interface ToastMessage {
   txHash?: `0x${string}` | string | null;
 }
 
-const DEFAULT_WAGER = 10000000000000000n; // 0.01 ETH
+const DEFAULT_WAGER = 60000000000000000000n; // 60 CPT
 
 export function BattleshipArena({
   gameId = "battleship_demo_1",
@@ -155,9 +155,9 @@ export function BattleshipArena({
 
   const player2Address = useMemo(() => {
     if (initialPlayer2) return initialPlayer2.toLowerCase();
-    if (isMockMode && mockSubMode === "bot") return MOCK_BOT_ADDRESS.toLowerCase();
+    if (mockSubMode === "bot") return MOCK_BOT_ADDRESS.toLowerCase();
     return "0x70997970c51812dc3a010c7d01b50e0d17dc79c8";
-  }, [initialPlayer2, isMockMode, mockSubMode]);
+  }, [initialPlayer2, mockSubMode]);
 
   // Synchronize audio setting on mount
   useEffect(() => {
@@ -174,10 +174,10 @@ export function BattleshipArena({
   useEffect(() => {
     store.initGame(gameId, player1Address, player2Address);
     // If in bot mode, trigger bot commitment setup
-    if (isMockMode && mockSubMode === "bot") {
+    if (mockSubMode === "bot") {
       void triggerBotTurn(GameType.BATTLESHIP, gameId);
     }
-  }, [gameId, player1Address, player2Address, isMockMode, mockSubMode]);
+  }, [gameId, player1Address, player2Address, mockSubMode]);
 
   // Turn Countdown Timer (Active during COMBAT phase)
   useEffect(() => {
@@ -342,8 +342,8 @@ export function BattleshipArena({
       let targetFlatBoard = store.myFlatBoard;
       let targetSalt = store.mySalt;
 
-      // In mock mode against smart bot, audit bot's secret board
-      if (isMockMode && mockSubMode === "bot") {
+      // Against smart bot, audit bot's secret board
+      if (mockSubMode === "bot") {
         const botSecret = getBotBattleshipSecret();
         if (botSecret) {
           targetFlatBoard = botSecret.flatBoard;
@@ -419,17 +419,18 @@ export function BattleshipArena({
 
   const handlePlayAgain = useCallback(() => {
     store.reset();
-    store.initGame(gameId, player1Address, player2Address);
+    const nextGameId = `btl_${Date.now()}`;
+    store.initGame(nextGameId, player1Address, player2Address);
     if (onRematch) {
       onRematch();
     }
-  }, [store, gameId, player1Address, player2Address, onRematch]);
+  }, [store, player1Address, player2Address, onRematch]);
 
   const handleExitToLobby = useCallback(() => {
     if (onBackToLobby) {
       onBackToLobby();
     } else {
-      router.push("/lobby");
+      router.push("/");
     }
   }, [onBackToLobby, router]);
 
@@ -462,7 +463,7 @@ export function BattleshipArena({
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 hover:border-cyan-500/40 text-slate-300 hover:text-white transition-all text-xs font-mono"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Lobby</span>
+            <span>Home</span>
           </button>
 
           <div className="flex items-center gap-2">
@@ -599,7 +600,7 @@ export function BattleshipArena({
               timeRemaining={timeRemaining}
               maxTurnTime={TURN_TIMEOUT_SECONDS}
               isGameOver={isMatchOver}
-              isBotOpponent={isMockMode && mockSubMode === "bot"}
+              isBotOpponent={mockSubMode === "bot"}
               gameStatusText={
                 store.winner
                   ? "MATCH CONCLUDED"
@@ -757,6 +758,8 @@ export function BattleshipArena({
             ? "All enemy warships sunk"
             : "Match concluded"
         }
+        gameId={gameId}
+        gameType={1}
         onPlayAgain={handlePlayAgain}
         onBackToLobby={handleExitToLobby}
       />

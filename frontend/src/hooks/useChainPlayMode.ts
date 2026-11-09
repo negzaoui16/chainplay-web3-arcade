@@ -97,10 +97,8 @@ export function useChainPlayMode(): ChainPlayModeInfo {
   const isMock = isMockModeSetting || !contractsAvailable;
   const isLiveOnChain = !isMock;
 
-  // Effective player address: in mock mode always use mock address, on-chain use wallet address
-  const effectiveAddress = isLiveOnChain && walletAddress
-    ? walletAddress
-    : mockPlayerAddress;
+  // Effective player address: prioritize connected wallet address whenever available
+  const effectiveAddress = walletAddress || mockPlayerAddress;
 
   return {
     isMock,

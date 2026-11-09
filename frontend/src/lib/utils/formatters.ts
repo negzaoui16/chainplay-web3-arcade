@@ -138,11 +138,11 @@ export function formatTimestamp(
 
 /**
  * Formats a wager amount with symbol.
- * Example: 50000000000000000n -> "0.05 ETH"
+ * Example: 60000000000000000000n -> "60 CPT"
  */
 export function formatWager(
   wei?: bigint | null,
-  symbol: string = "ETH"
+  symbol: string = "CPT"
 ): string {
   return `${formatEther(wei)} ${symbol}`;
 }

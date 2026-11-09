@@ -11,6 +11,8 @@ export interface ContractAddresses {
   battleship: `0x${string}`;
   memoryDuel: `0x${string}`;
   rewardManager: `0x${string}`;
+  chainPlayToken?: `0x${string}`;
+  tokenManager?: `0x${string}`;
 }
 
 export const FALLBACK_ADDRESSES: ContractAddresses = {
@@ -19,6 +21,16 @@ export const FALLBACK_ADDRESSES: ContractAddresses = {
   battleship: ZERO_ADDRESS,
   memoryDuel: ZERO_ADDRESS,
   rewardManager: ZERO_ADDRESS,
+  chainPlayToken: ZERO_ADDRESS,
+  tokenManager: ZERO_ADDRESS,
+} as const;
+
+/**
+ * Hedera Testnet Verified Contract Deployments
+ */
+export const HEDERA_CONTRACTS = {
+  chainPlayToken: "0x2D0E84d043Ae598F528FE39229e3DC0F8845A98a" as `0x${string}`,
+  tokenManager: "0x6D22E4bCF8ab77E13FEB5F59E2C7C404aDe610A9" as `0x${string}`,
 } as const;
 
 /**
@@ -26,6 +38,22 @@ export const FALLBACK_ADDRESSES: ContractAddresses = {
  * Defaults to ZERO_ADDRESS when contracts are not yet deployed or in local mock mode.
  */
 export const CONTRACT_ADDRESSES: Record<number, ContractAddresses> = {
+  // Hedera Testnet (296)
+  [CHAIN_IDS.HEDERA_TESTNET]: {
+    gameManager: ZERO_ADDRESS,
+    ticTacToe: ZERO_ADDRESS,
+    battleship: ZERO_ADDRESS,
+    memoryDuel: ZERO_ADDRESS,
+    rewardManager:
+      (process.env.NEXT_PUBLIC_HEDERA_TOKEN_MANAGER as `0x${string}`) ||
+      HEDERA_CONTRACTS.tokenManager,
+    chainPlayToken:
+      (process.env.NEXT_PUBLIC_HEDERA_CHAIN_PLAY_TOKEN as `0x${string}`) ||
+      HEDERA_CONTRACTS.chainPlayToken,
+    tokenManager:
+      (process.env.NEXT_PUBLIC_HEDERA_TOKEN_MANAGER as `0x${string}`) ||
+      HEDERA_CONTRACTS.tokenManager,
+  },
   // Sepolia Testnet (11155111)
   [CHAIN_IDS.SEPOLIA]: {
     gameManager:
@@ -111,6 +139,13 @@ export function isContractConfigured(address: string | undefined): boolean {
  * Checks if all contracts for a chain are configured.
  */
 export function areContractsDeployed(chainId?: number): boolean {
+  if (chainId === CHAIN_IDS.HEDERA_TESTNET) {
+    const addresses = getContractAddresses(chainId);
+    return (
+      isContractConfigured(addresses.tokenManager) &&
+      isContractConfigured(addresses.chainPlayToken)
+    );
+  }
   const addresses = getContractAddresses(chainId);
   return (
     isContractConfigured(addresses.gameManager) &&

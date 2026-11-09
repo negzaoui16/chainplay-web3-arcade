@@ -1,0 +1,32 @@
+{
+  "name": "chainplay-contracts",
+  "version": "1.0.0",
+  "description": "ChainPlay Hedera EVM Smart Contracts (CPT Token & TokenManager)",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:hedera": "hardhat run scripts/deploy-hedera.ts --network hedera_testnet"
+  },
+  "keywords": [
+    "hedera",
+    "erc20",
+    "gaming",
+    "solidity",
+    "eip-712"
+  ],
+  "author": "ChainPlay Team",
+  "license": "MIT",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@types/chai": "^4.3.20",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^20.17.10",
+    "dotenv": "^16.4.7",
+    "hardhat": "^2.22.17",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.2"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.1.0"
+  }
+}

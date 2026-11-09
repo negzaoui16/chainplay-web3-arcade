@@ -24,7 +24,14 @@ import {
   ArrowRight,
   Sparkles,
   PlusCircle,
+  Coins,
+  Copy,
+  Check,
+  ExternalLink,
+  Loader2,
 } from "lucide-react";
+import { useAccount } from "wagmi";
+import { useHederaTokenManager } from "@/hooks/useHederaTokenManager";
 import { GameType } from "@/types/lobby.types";
 import { GameSelectorCards } from "@/components/lobby/GameSelectorCards";
 import { CreateRoomModal } from "@/components/lobby/CreateRoomModal";
@@ -34,11 +41,16 @@ import { soundEffects } from "@/lib/utils/soundEffects";
 
 export default function HomePage(): JSX.Element {
   const rooms = useLobbyStore((s) => s.rooms);
+  const { address } = useAccount();
+  const { refreshBalances } = useHederaTokenManager();
 
   const [createModalOpen, setCreateModalOpen] = useState<boolean>(false);
   const [selectedGameForModal, setSelectedGameForModal] = useState<GameType>(
     GameType.TIC_TAC_TOE
   );
+  const [copiedContract, setCopiedContract] = useState<boolean>(false);
+  const [isClaimingFaucet, setIsClaimingFaucet] = useState<boolean>(false);
+  const [faucetMessage, setFaucetMessage] = useState<string | null>(null);
 
   const openRoomsCount = rooms.filter((r) => r.status === 0).length;
 
@@ -46,6 +58,68 @@ export default function HomePage(): JSX.Element {
     soundEffects.playTileClick();
     setSelectedGameForModal(gameType);
     setCreateModalOpen(true);
+  };
+
+  const handleCopyContract = (): void => {
+    soundEffects.playTileClick();
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      void navigator.clipboard.writeText("0x2D0E84d043Ae598F528FE39229e3DC0F8845A98a").then(() => {
+        setCopiedContract(true);
+        setTimeout(() => setCopiedContract(false), 2000);
+      });
+    }
+  };
+
+  const handleAddTokenToMetaMask = async (): Promise<void> => {
+    if (typeof window !== "undefined" && (window as unknown as { ethereum?: { request: (args: unknown) => Promise<unknown> } }).ethereum) {
+      try {
+        soundEffects.playTileClick();
+        await (window as unknown as { ethereum: { request: (args: unknown) => Promise<unknown> } }).ethereum.request({
+          method: "wallet_watchAsset",
+          params: {
+            type: "ERC20",
+            options: {
+              address: "0x2D0E84d043Ae598F528FE39229e3DC0F8845A98a",
+              symbol: "CPT",
+              decimals: 18,
+            },
+          },
+        });
+      } catch (err) {
+        console.warn("Failed to add CPT to MetaMask:", err);
+      }
+    }
+  };
+
+  const handleClaimFaucet = async (): Promise<void> => {
+    const targetAddress = address || "0x94DbD1F0843E9A07E173Fdc60540Cb830E053CDE";
+    setIsClaimingFaucet(true);
+    setFaucetMessage(null);
+    try {
+      soundEffects.playTileClick();
+      const res = await fetch("/api/faucet/claim-cpt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerAddress: targetAddress }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        soundEffects.playVictory();
+        setFaucetMessage("Claimed +500 CPT!");
+        await refreshBalances();
+        setTimeout(() => setFaucetMessage(null), 3500);
+      } else {
+        setFaucetMessage(data.error || "Failed");
+        soundEffects.playError();
+        setTimeout(() => setFaucetMessage(null), 3500);
+      }
+    } catch {
+      setFaucetMessage("Error");
+      soundEffects.playError();
+      setTimeout(() => setFaucetMessage(null), 3500);
+    } finally {
+      setIsClaimingFaucet(false);
+    }
   };
 
   return (
@@ -76,11 +150,11 @@ export default function HomePage(): JSX.Element {
           transition={{ duration: 0.4 }}
           className="text-4xl sm:text-6xl lg:text-7xl font-black tracking-tight text-white font-mono uppercase max-w-5xl leading-[1.1]"
         >
-          Stake ETH.{" "}
+          Stake CPT.{" "}
           <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-amber-300 to-pink-500">
             Outplay Rivals.
           </span>{" "}
-          Claim Escrow.
+          Claim Hedera Escrow.
         </motion.h1>
 
         {/* Hero Subtitle */}
@@ -120,6 +194,91 @@ export default function HomePage(): JSX.Element {
             <PlusCircle className="w-4 h-4 text-cyan-400" />
             <span>Create New Arena</span>
           </button>
+        </motion.div>
+
+        {/* ======================================================== */}
+        {/* Hedera Testnet & CPT Token Portal Box                    */}
+        {/* ======================================================== */}
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.25 }}
+          className="mt-8 w-full max-w-4xl p-5 rounded-2xl bg-gradient-to-r from-[#101726]/95 via-[#0B101D]/95 to-[#101726]/95 border border-cyan-500/50 backdrop-blur-xl shadow-cyan-glow flex flex-col md:flex-row items-center justify-between gap-4"
+        >
+          <div className="flex items-center gap-3.5 text-left">
+            <div className="w-12 h-12 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shrink-0">
+              <Coins className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black uppercase tracking-wider text-white">
+                  Hedera Testnet Token Hub
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold font-mono bg-cyan-950 text-cyan-300 border border-cyan-500/40">
+                  Chain ID 296
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 font-mono mt-1 flex items-center gap-1.5 flex-wrap">
+                <span>CPT Contract:</span>
+                <code className="text-cyan-300 select-all font-bold">
+                  0x2D0E84d043Ae598F528FE39229e3DC0F8845A98a
+                </code>
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 flex-wrap justify-end shrink-0">
+            {/* 1-Click Add to MetaMask */}
+            <button
+              type="button"
+              onClick={handleAddTokenToMetaMask}
+              className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/30 hover:to-orange-500/30 border border-amber-500/50 text-amber-300 hover:text-amber-200 text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+              title="Import CPT Token directly into MetaMask"
+            >
+              <span>🦊 Add CPT to MetaMask</span>
+            </button>
+
+            {/* Claim 500 CPT Faucet */}
+            <button
+              type="button"
+              disabled={isClaimingFaucet}
+              onClick={handleClaimFaucet}
+              className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-500/20 to-teal-500/20 hover:from-emerald-500/30 hover:to-teal-500/30 border border-emerald-500/50 text-emerald-300 text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 disabled:opacity-50"
+            >
+              {isClaimingFaucet ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" />
+                  <span>Sending...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>{faucetMessage || "Get 500 CPT Faucet"}</span>
+                </>
+              )}
+            </button>
+
+            {/* Copy Address */}
+            <button
+              type="button"
+              onClick={handleCopyContract}
+              className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white transition-all"
+              title="Copy CPT Token Contract Address"
+            >
+              {copiedContract ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+            </button>
+
+            {/* HashScan Explorer Link */}
+            <a
+              href="https://hashscan.io/testnet/contract/0x2D0E84d043Ae598F528FE39229e3DC0F8845A98a"
+              target="_blank"
+              rel="noreferrer"
+              className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-400 hover:text-cyan-400 transition-all"
+              title="View Contract on HashScan Explorer"
+            >
+              <ExternalLink className="w-4 h-4" />
+            </a>
+          </div>
         </motion.div>
 
         {/* ======================================================== */}
@@ -202,7 +361,7 @@ export default function HomePage(): JSX.Element {
               </h2>
             </div>
             <p className="text-xs text-slate-400 mt-1">
-              Join an open match instantly with one click and stake your ETH
+              Join an open match instantly with one click and stake your CPT
             </p>
           </div>
 

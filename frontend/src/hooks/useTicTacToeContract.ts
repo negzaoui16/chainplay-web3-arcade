@@ -162,7 +162,8 @@ export function useTicTacToeContract(boundGameId?: string): UseTicTacToeContract
       setError(null);
 
       try {
-        if (isMock) {
+        const mockSubMode = useAppStore.getState().mockSubMode;
+        if (isMock || mockSubMode === "bot") {
           const store = useTicTacToeStore.getState();
           const targetGameId = gameId || store.gameId || "";
           const activePlayer = getActiveAddress();
@@ -173,7 +174,6 @@ export function useTicTacToeContract(boundGameId?: string): UseTicTacToeContract
             return { success: false };
           }
 
-          const mockSubMode = useAppStore.getState().mockSubMode;
           const symbol: 1 | 2 =
             store.player1?.toLowerCase() === activePlayer.toLowerCase() ? 1 : 2;
 
@@ -256,7 +256,8 @@ export function useTicTacToeContract(boundGameId?: string): UseTicTacToeContract
       setError(null);
 
       try {
-        if (isMock) {
+        const mockSubMode = useAppStore.getState().mockSubMode;
+        if (isMock || mockSubMode === "bot") {
           await simulateTxDelay(300, 600);
           const store = useTicTacToeStore.getState();
           const activePlayer = getActiveAddress();

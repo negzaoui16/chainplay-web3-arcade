@@ -427,8 +427,8 @@ export async function triggerBotTurn(
   gameType: GameType,
   gameId: string
 ): Promise<void> {
-  const { isMockMode, mockSubMode } = useAppStore.getState();
-  if (!isMockMode || mockSubMode !== "bot") return;
+  const { mockSubMode } = useAppStore.getState();
+  if (mockSubMode !== "bot") return;
 
   await simulateTxDelay(500, 850);
 

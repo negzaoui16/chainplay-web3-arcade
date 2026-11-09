@@ -154,6 +154,7 @@ export function NetworkBanner(): JSX.Element | null {
   // Case 2: Live Mode on Unsupported EVM Network
   // --------------------------------------------------------------------------
   const isSupportedChain =
+    activeChainId === CHAIN_IDS.HEDERA_TESTNET ||
     activeChainId === CHAIN_IDS.SEPOLIA ||
     activeChainId === CHAIN_IDS.ARBITRUM_SEPOLIA ||
     activeChainId === CHAIN_IDS.HARDHAT;
@@ -174,12 +175,22 @@ export function NetworkBanner(): JSX.Element | null {
               <strong className="font-extrabold uppercase">
                 Unsupported Network (Chain ID: {activeChainId})
               </strong>{" "}
-              — Smart contracts are deployed on Ethereum Sepolia and Arbitrum
-              Sepolia. Please switch networks to play live matches.
+              — Please switch to Hedera Testnet (Chain ID 296) to interact with the deployed CPT and TokenManager contracts.
             </span>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              disabled={isSwitchingChain}
+              onClick={() => {
+                soundEffects.playTileClick();
+                switchChain?.({ chainId: CHAIN_IDS.HEDERA_TESTNET });
+              }}
+              className="px-3 py-1 rounded-md bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold transition-all shadow-sm disabled:opacity-50"
+            >
+              {isSwitchingChain ? "Switching..." : "Switch to Hedera Testnet"}
+            </button>
             <button
               type="button"
               disabled={isSwitchingChain}

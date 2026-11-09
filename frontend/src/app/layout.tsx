@@ -11,7 +11,7 @@ import { Gamepad2, ShieldCheck, Zap, GitFork } from "lucide-react";
 export const metadata: Metadata = {
   title: "ChainPlay - Web3 Arcade Arenas",
   description:
-    "Decentralized 1v1 on-chain arcade gaming. Stake ETH, outplay opponents in Tic-Tac-Toe, Battleship, and Memory Duel, and claim instant smart contract payouts.",
+    "Decentralized 1v1 on-chain arcade gaming. Stake CPT, outplay opponents in Tic-Tac-Toe, Battleship, and Memory Duel, and claim instant smart contract payouts.",
   keywords: [
     "Web3",
     "Ethereum",

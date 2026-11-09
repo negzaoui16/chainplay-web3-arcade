@@ -29,7 +29,11 @@ import {
 import { useLobbyStore } from "@/store/useLobbyStore";
 import { useGameManager } from "@/hooks/useGameManager";
 import { useChainPlayMode } from "@/hooks/useChainPlayMode";
-import { MOCK_PLAYER_1_ADDRESS } from "@/store/useAppStore";
+import {
+  MOCK_PLAYER_1_ADDRESS,
+  MOCK_BOT_ADDRESS,
+  useAppStore,
+} from "@/store/useAppStore";
 import { WaitingRoomOverlay } from "@/components/lobby/WaitingRoomOverlay";
 import { TicTacToeArena } from "@/components/games/tictactoe";
 import { BattleshipArena } from "@/components/games/battleship";
@@ -62,7 +66,7 @@ export default function GameRoomPage(): JSX.Element {
 
   const rooms = useLobbyStore((s) => s.rooms);
   const { getGameInfo } = useGameManager();
-  const { isMock } = useChainPlayMode();
+  const { effectiveAddress } = useChainPlayMode();
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [roomData, setRoomData] = useState<RoomMetadata | null>(null);
@@ -87,15 +91,20 @@ export default function GameRoomPage(): JSX.Element {
       const fetched = await getGameInfo(roomIdParam);
       if (fetched) {
         setRoomData(fetched);
-      } else if (isMock) {
-        // Fallback for direct mock tab testing
+      } else {
+        // Fallback for direct URL access, refresh, or bot room
+        const hostAddress =
+          effectiveAddress || MOCK_PLAYER_1_ADDRESS;
+        const subMode = useAppStore.getState().mockSubMode;
+        const isBot =
+          subMode === "bot" || roomIdParam.toLowerCase().includes("bot");
         const fallback: RoomMetadata = {
           id: roomIdParam,
           gameType: resolvedGameType,
-          player1: MOCK_PLAYER_1_ADDRESS,
-          player2: null,
-          wager: 10000000000000000n, // 0.01 ETH
-          status: RoomStatus.WAITING,
+          player1: hostAddress,
+          player2: isBot ? MOCK_BOT_ADDRESS : null,
+          wager: 60000000000000000000n, // 60 CPT
+          status: isBot ? RoomStatus.ACTIVE : RoomStatus.WAITING,
           winner: null,
           createdAt: Date.now(),
         };
@@ -107,7 +116,7 @@ export default function GameRoomPage(): JSX.Element {
     } finally {
       setIsLoading(false);
     }
-  }, [roomIdParam, resolvedGameType, rooms, getGameInfo, isMock]);
+  }, [roomIdParam, resolvedGameType, rooms, getGameInfo, effectiveAddress]);
 
   useEffect(() => {
     void loadRoom();
@@ -222,7 +231,7 @@ export default function GameRoomPage(): JSX.Element {
   // --------------------------------------------------------------------------
   const handleBackToLobby = (): void => {
     soundEffects.playTileClick();
-    router.push("/lobby");
+    router.push("/");
   };
 
   switch (resolvedGameType) {

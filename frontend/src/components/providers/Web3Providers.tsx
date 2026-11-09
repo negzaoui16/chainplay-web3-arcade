@@ -11,8 +11,9 @@
  * Zero `any` types. Strict TypeScript.
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { WagmiProvider, type State } from "wagmi";
+import { reconnect } from "@wagmi/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RainbowKitProvider, darkTheme } from "@rainbow-me/rainbowkit";
 import { wagmiConfig } from "@/config/wagmi";
@@ -26,6 +27,38 @@ export function Web3Providers({
   children,
   initialState,
 }: Web3ProvidersProps): JSX.Element {
+  // Ensure Wagmi immediately reconnects and synchronizes whenever account or chain changes
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    void reconnect(wagmiConfig);
+
+    const eth = (window as unknown as {
+      ethereum?: {
+        on?: (event: string, cb: () => void) => void;
+        removeListener?: (event: string, cb: () => void) => void;
+      };
+    }).ethereum;
+
+    if (!eth?.on) {
+      return;
+    }
+
+    const handleSync = () => {
+      void reconnect(wagmiConfig);
+    };
+
+    eth.on("accountsChanged", handleSync);
+    eth.on("chainChanged", handleSync);
+
+    return () => {
+      eth.removeListener?.("accountsChanged", handleSync);
+      eth.removeListener?.("chainChanged", handleSync);
+    };
+  }, []);
+
   // Lazily instantiate QueryClient once per component tree mount
   const [queryClient] = useState<QueryClient>(
     () =>

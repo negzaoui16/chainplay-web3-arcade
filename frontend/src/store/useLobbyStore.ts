@@ -24,7 +24,7 @@ export const INITIAL_MOCK_ROOMS: RoomMetadata[] = [
     gameType: GameType.TIC_TAC_TOE,
     player1: "0x71C800000000000000000000000000000000B289",
     player2: null,
-    wager: 10000000000000000n, // 0.01 ETH
+    wager: 60000000000000000000n, // 60 CPT
     status: RoomStatus.WAITING,
     winner: null,
     createdAt: Date.now() - 1000 * 60 * 3, // 3 minutes ago
@@ -34,7 +34,7 @@ export const INITIAL_MOCK_ROOMS: RoomMetadata[] = [
     gameType: GameType.BATTLESHIP,
     player1: "0x4444444444444444444444444444444444444444",
     player2: null,
-    wager: 50000000000000000n, // 0.05 ETH
+    wager: 120000000000000000000n, // 120 CPT
     status: RoomStatus.WAITING,
     winner: null,
     createdAt: Date.now() - 1000 * 60 * 12, // 12 minutes ago
@@ -44,7 +44,7 @@ export const INITIAL_MOCK_ROOMS: RoomMetadata[] = [
     gameType: GameType.MEMORY_DUEL,
     player1: "0x8888888888888888888888888888888888888888",
     player2: null,
-    wager: 100000000000000000n, // 0.1 ETH
+    wager: 240000000000000000000n, // 240 CPT
     status: RoomStatus.WAITING,
     winner: null,
     createdAt: Date.now() - 1000 * 60 * 25, // 25 minutes ago
